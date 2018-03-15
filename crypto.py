@@ -5,6 +5,8 @@ import ecdsa
 import hashlib
 from base58 import *
 
+# Hash functions
+
 def sha256(x):
     '''Simple wrapper of hashlib sha256.'''
     return hashlib.sha256(x).digest()
@@ -50,16 +52,7 @@ class EllipticCurveKey:
         private_key = ecdsa.SigningKey.from_secret_exponent(self.secret, curve = ecdsa.curves.SECP256k1)
         public_key = private_key.get_verifying_key()
         signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
-        assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_der)
-        
-        #pre_hash = Hash(bfh(self.serialize_preimage(i)))
-        #pkey = regenerate_key(sec)
-        #secexp = pkey.secret
-        #private_key = MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
-        #public_key = private_key.get_verifying_key()
-        #sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
-        
-        
+        assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_der)        
         return signature
     
     def serialized_pubkey(self):
