@@ -5,6 +5,26 @@ import ecdsa
 import hashlib
 from base58 import *
 
+def sha256(x):
+    '''Simple wrapper of hashlib sha256.'''
+    return hashlib.sha256(x).digest()
+
+def double_sha256(x):
+    '''SHA-256 of SHA-256, as used extensively in bitcoin.'''
+    return sha256(sha256(x))
+
+def ripemd160(x):
+    '''Simple wrapper of hashlib ripemd160.'''
+    h = hashlib.new('ripemd160')
+    h.update(x)
+    return h.digest()
+
+def hash160(x):
+    '''RIPEMD-160 of SHA-256.'''
+    return ripemd160(sha256(x))
+
+# Keys
+
 WIF_PREFIX = 0x80
 
 class EllipticCurveKey:
@@ -29,8 +49,17 @@ class EllipticCurveKey:
     def sign(self, msg_hash):
         private_key = ecdsa.SigningKey.from_secret_exponent(self.secret, curve = ecdsa.curves.SECP256k1)
         public_key = private_key.get_verifying_key()
-        signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_string)
-        assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_string)
+        signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
+        assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_der)
+        
+        #pre_hash = Hash(bfh(self.serialize_preimage(i)))
+        #pkey = regenerate_key(sec)
+        #secexp = pkey.secret
+        #private_key = MySigningKey.from_secret_exponent(secexp, curve = SECP256k1)
+        #public_key = private_key.get_verifying_key()
+        #sig = private_key.sign_digest_deterministic(pre_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
+        
+        
         return signature
     
     def serialized_pubkey(self):
