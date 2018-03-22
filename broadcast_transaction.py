@@ -4,7 +4,7 @@
 import hashlib
 
 from address import *
-from crypto import (double_sha256, EllipticCurveKey)
+from crypto import (dsha256, EllipticCurveKey)
 
 SIGHASH_ALL = 0x01
 SIGHASH_FORKID = 0x40
@@ -20,13 +20,14 @@ OP_HASH160= 0xa9
 OP_EQUALVERIFY = 0x88
 OP_CHECKSIG = 0xac
 
-def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id, prevtx_index ):
+def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id, prevtx_index, prevamount ):
     ''' Construct a Bitcoin Cash transaction with one input and one output.
     wifkey (str) : private key (Wallet Import Format)
     receive_address (str) : recipient address (legacy or cash format)
     amount (int) : amount in satoshis 
     prevtx_id (str) : previous output transaction id
-    prevtx_index (int) : index of the output in the previous transaction'''
+    prevtx_index (int) : index of the output in the previous transaction
+    prevamount (int) : previous output amount in staoshis'''
     
     # Creation of elliptic curve keys (private key + public key)
     eckey = EllipticCurveKey.from_wifkey( wifkey )
@@ -41,22 +42,22 @@ def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id,
     print("Receiving address", recaddr.to_cash())
     print()
     
-    # Version
+    # Version (little-endian)
     version = TRANSACTION_VERSION_1
     nVersion = version.to_bytes(4,'little')
     
-    # Signature hash type
+    # Signature hash type (little-endian)
     hashtype = BCH_SIGHASH_TYPE
     nHashtype = hashtype.to_bytes(4,'little')
     
-    # Sequence number
+    # Sequence number (little-endian)
     sequence = SEQUENCE_NUMBER
     nSequence = sequence.to_bytes(4,'little')
     
-    # Amount in satoshis
+    # Amount in satoshis (little-endian)
     nAmount = amount.to_bytes(8,'little')
     
-    # Locktime
+    # Locktime (little-endian)
     nLocktime = locktime.to_bytes(4,'little')
     
     # Previous output hash (previous transaction id)
@@ -94,13 +95,12 @@ def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id,
     # Length of previous locking script
     lengthLockingScript = bytes([len(lockingScript)])
     
-    
     outpoint = prevHash + prevIndex
-    hashPrevouts = double_sha256( outpoint )
-    hashSequence = double_sha256( nSequence )
-    hashOutputs = double_sha256( nAmount + lengthLockingScript + lockingScript )
+    hashPrevouts = dsha256( outpoint )
+    hashSequence = dsha256( nSequence )
+    hashOutputs = dsha256( nAmount + lengthLockingScript + lockingScript )
     
-    # --- Construct preimage (temporary transaction) ---
+    # --- Construct preimage ---
     # BIP-143
     preimage = b""
     
@@ -116,12 +116,8 @@ def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id,
     preimage += nLocktime # locktime
     preimage += nHashtype # signature 4-bytes hash type
     
-    #print("Preimage")
-    #print(preimage.hex())
-    #print()
-    
     # We sign the double SHA256 hash of the preimage with our private key
-    prehash = double_sha256( preimage )
+    prehash = dsha256( preimage )
     signature = eckey.sign( prehash )
     lengthSigandHash = bytes([len(signature)+1])
     
@@ -135,10 +131,6 @@ def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id,
     unlockingScript += publicKey # serialized public key
     
     lengthUnlockingScript = bytes([len(unlockingScript)])
-    
-    #print("Unlocking script")
-    #print(unlockingScript.hex())
-    #print()
     
     # --- Construct transaction ---
     rawtx = b""
@@ -160,14 +152,7 @@ def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id,
     
     rawtx += nLocktime # locktime
     
-    txid = double_sha256( rawtx )[::-1]
-    
-    #print("Raw transaction")
-    #print(rawtx.hex())
-    #print()
-    #print("Transaction ID")
-    #print(txid.hex())
-    #print()
+    txid = dsha256( rawtx )[::-1]
     
     return rawtx.hex(), txid.hex()
     
@@ -178,18 +163,20 @@ if __name__ == '__main__':
     print("---------------------")
     print()
     
-    wifkey = "5KdpawjKDYiMAS9fLtXnTgsmtynT3BrRz5xsXqwBZ5s8grqUh9X"
+    wifkey = "5KMYonsNGYJj8UXf2L4M7gmKi87yXThjgDuVpWoekjYjCR4S5nr"
     recipient_address = "bitcoincash:qq7ur36zd8uq2wqv0mle2khzwt79ue9ty57mvd95r0"
-    amount = 24700
-    locktime = 521730
-    prevtx_id = "be95987a30f78575fa19baa1a48162f00d1b2f03af6ed7168cdacbbd7a6875f4"
-    prevtx_index = 1
-    prevamount = 25000
+    amount = 29508
+    locktime = 522519 # in electron : height of the last block
+    prevtx_id = "5510f8a43ff2bcda27de5f459ea1e499b1951b17001daa526a557d960b4ccab5"
+    prevtx_index = 0
+    prevamount = 29808 # previous output amount
     
-    tx, txid = construct_transaction( wifkey, recipient_address, amount, locktime, prevtx_id, prevtx_index )
+    tx, txid = construct_transaction( wifkey, recipient_address, amount, locktime, prevtx_id, prevtx_index, prevamount )
     print("RAW TRANSACTION")
     print(tx)
     print()
     print("TRANSACTION ID")
     print(txid)
+    print()
+    print("Transaction fees (sat)", prevamount-amount)
     print()

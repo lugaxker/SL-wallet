@@ -23,7 +23,7 @@ def sha256(x):
     '''Simple wrapper of hashlib sha256.'''
     return _sha256(x).digest()
 
-def double_sha256(x):
+def dsha256(x):
     '''SHA-256 of SHA-256, as used extensively in bitcoin.'''
     return sha256(sha256(x))
 
@@ -94,7 +94,7 @@ class Base58():
         prefixes it.'''
         be_bytes = Base58.decode(txt)
         result, check = be_bytes[:-4], be_bytes[-4:]
-        if check != double_sha256(result)[:4]:
+        if check != dsha256(result)[:4]:
             raise Base58Error('invalid base 58 checksum for {}'.format(txt))
         return result
 
@@ -102,5 +102,5 @@ class Base58():
     def encode_check(payload):
         """Encodes a payload bytearray (which includes the version byte(s))
         into a Base58Check string."""
-        be_bytes = payload + double_sha256(payload)[:4]
+        be_bytes = payload + dsha256(payload)[:4]
         return Base58.encode(be_bytes)

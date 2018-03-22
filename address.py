@@ -28,7 +28,7 @@
 # SOFTWARE.
 
 from base58 import *
-from crypto import sha256, double_sha256, hash160  
+from crypto import sha256, dsha256, hash160  
 
 class AddressError(Exception):
     '''Exception used for Address errors.'''
