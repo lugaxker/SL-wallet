@@ -116,6 +116,9 @@ def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id,
     preimage += nLocktime # locktime
     preimage += nHashtype # signature 4-bytes hash type
     
+    print("PREIMAGE",preimage.hex())
+    print()
+    
     # We sign the double SHA256 hash of the preimage with our private key
     prehash = dsha256( preimage )
     signature = eckey.sign( prehash )
@@ -140,8 +143,8 @@ def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id,
     
     rawtx += prevHash # previous output hash
     rawtx += prevIndex # previous output index
-    rawtx += lengthUnlockingScript # length of the previous output locking script
-    rawtx += unlockingScript # previous output locking script (scriptPubKey)
+    rawtx += lengthUnlockingScript # length of the unlocking script
+    rawtx += unlockingScript # unlocking script (scriptSig)
     rawtx += nSequence # sequence number
     
     rawtx += nOutputs # output count
@@ -180,3 +183,4 @@ if __name__ == '__main__':
     print()
     print("Transaction fees (sat)", prevamount-amount)
     print()
+    
