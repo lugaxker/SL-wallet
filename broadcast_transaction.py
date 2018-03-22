@@ -165,11 +165,11 @@ if __name__ == '__main__':
     
     wifkey = "5KMYonsNGYJj8UXf2L4M7gmKi87yXThjgDuVpWoekjYjCR4S5nr"
     recipient_address = "bitcoincash:qq7ur36zd8uq2wqv0mle2khzwt79ue9ty57mvd95r0"
-    amount = 29508
-    locktime = 522519 # in electron : height of the last block
-    prevtx_id = "5510f8a43ff2bcda27de5f459ea1e499b1951b17001daa526a557d960b4ccab5"
+    amount = 29066
+    locktime = 522542 # in electron : height of the last block
+    prevtx_id = "31ba61e23bc532e3210c6521757f6f9cf46540fc9a57dd2c1493551b14f7f4d4"
     prevtx_index = 0
-    prevamount = 29808 # previous output amount
+    prevamount = 29316 # previous output amount
     
     tx, txid = construct_transaction( wifkey, recipient_address, amount, locktime, prevtx_id, prevtx_index, prevamount )
     print("RAW TRANSACTION")
