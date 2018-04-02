@@ -29,6 +29,18 @@ def hash160(x):
 
 WIF_PREFIX = 0x80
 
+class ModifiedSigningKey(ecdsa.SigningKey):
+    """Enforce low S values in signatures"""
+
+    def sign_number(self, number, entropy=None, k=None):
+        curve = ecdsa.SECP256k1
+        G = curve.generator
+        order = G.order()
+        r, s = ecdsa.SigningKey.sign_number(self, number, entropy, k)
+        if s > order//2:
+            s = order - s
+        return r, s
+
 class EllipticCurveKey:
     
     def __init__( self, k, compressed=False ):
@@ -49,7 +61,7 @@ class EllipticCurveKey:
         return self( k, compressed )
             
     def sign(self, msg_hash):
-        private_key = ecdsa.SigningKey.from_secret_exponent(self.secret, curve = ecdsa.SECP256k1)
+        private_key = ModifiedSigningKey.from_secret_exponent(self.secret, curve = ecdsa.SECP256k1)
         public_key = private_key.get_verifying_key()
         signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
         assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_der)        

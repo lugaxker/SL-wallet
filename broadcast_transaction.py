@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-import hashlib
+import socket
 
-from address import *
 from crypto import (dsha256, EllipticCurveKey)
+from address import *
+from network import make_message, version_message
 
 SIGHASH_ALL = 0x01
 SIGHASH_FORKID = 0x40
@@ -20,14 +21,14 @@ OP_HASH160= 0xa9
 OP_EQUALVERIFY = 0x88
 OP_CHECKSIG = 0xac
 
-def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id, prevtx_index, prevamount ):
+def construct_transaction( wifkey, receive_address, amount, locktime, prevout_id, prevout_index, prevout_value ):
     ''' Construct a Bitcoin Cash transaction with one input and one output.
     wifkey (str) : private key (Wallet Import Format)
     receive_address (str) : recipient address (legacy or cash format)
     amount (int) : amount in satoshis 
-    prevtx_id (str) : previous output transaction id
-    prevtx_index (int) : index of the output in the previous transaction
-    prevamount (int) : previous output amount in staoshis'''
+    prevout_id (str) : previous output transaction id
+    prevout_index (int) : index of the output in the previous transaction
+    prevout_value (int) : previous output value in satoshis'''
     
     # Creation of elliptic curve keys (private key + public key)
     eckey = EllipticCurveKey.from_wifkey( wifkey )
@@ -61,13 +62,13 @@ def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id,
     nLocktime = locktime.to_bytes(4,'little')
     
     # Previous output hash (previous transaction id)
-    prevHash = bytes.fromhex( prevtx_id )[::-1]
+    prevHash = bytes.fromhex( prevout_id )[::-1]
     
     # Previous output index in this transaction
-    prevIndex = prevtx_index.to_bytes(4,'little')
+    prevIndex = prevout_index.to_bytes(4,'little')
     
     # Previous output value
-    prevValue = prevamount.to_bytes(8,'little')
+    prevValue = prevout_value.to_bytes(8,'little')
     
     # Number of tx inputs
     input_count = 1
@@ -157,7 +158,7 @@ def construct_transaction( wifkey, receive_address, amount, locktime, prevtx_id,
     
     txid = dsha256( rawtx )[::-1]
     
-    return rawtx.hex(), txid.hex()
+    return rawtx, txid
     
     
 if __name__ == '__main__':
@@ -166,21 +167,64 @@ if __name__ == '__main__':
     print("---------------------")
     print()
     
-    wifkey = "5KMYonsNGYJj8UXf2L4M7gmKi87yXThjgDuVpWoekjYjCR4S5nr"
-    recipient_address = "bitcoincash:qq7ur36zd8uq2wqv0mle2khzwt79ue9ty57mvd95r0"
-    amount = 29066
-    locktime = 522542 # in electron : height of the last block
-    prevtx_id = "31ba61e23bc532e3210c6521757f6f9cf46540fc9a57dd2c1493551b14f7f4d4"
-    prevtx_index = 0
-    prevamount = 29316 # previous output amount
+    # To send a new transaction, you have to modify:
+    #   last_block (int) : height of the last block
+    #   wifkey (str) : private key (WIF) of the sending address
+    #   recipient_address (str) : receiving address
+    #   receive_address (str) : recipient address (legacy or cash format)
+    #   amount (int) : amount in satoshis 
+    #   prevout_id (str) : previous output transaction id
+    #   prevout_index (int) : index of the output in the previous transaction
+    #   prevout_value (int) : previous output value in satoshis
+    #   host (str) : IPv4 address of BCH node
+    #   port (int) : port (DEFAULT_PORT = 8333)
     
-    tx, txid = construct_transaction( wifkey, recipient_address, amount, locktime, prevtx_id, prevtx_index, prevamount )
+    last_block = 524119
+    
+    wifkey = ""
+    recipient_address = "bitcoincash:qq7ur36zd8uq2wqv0mle2khzwt79ue9ty57mvd95r0"
+    amount = 49558
+    locktime = last_block # in electron : height of the last block
+    prevout_id = "f08a8881081a16045ab6d7df26e2c29961f20247c5bb802816cf8b55b2f772a5"
+    prevout_index = 0
+    prevout_value = 49808 # previous output value
+    
+    host = "47.89.180.162"
+    port = 8333
+    
+    # Construction of transaction payload
+    tx, txid = construct_transaction( wifkey, recipient_address, amount, locktime, prevout_id, prevout_index, prevout_value )
     print("RAW TRANSACTION")
-    print(tx)
+    print(tx.hex())
     print()
     print("TRANSACTION ID")
-    print(txid)
+    print(txid.hex())
     print()
-    print("Transaction fees (sat)", prevamount-amount)
+    print("Transaction fees (sat)", prevout_value-amount)
     print()
     
+    # Connexion to bitcoin network
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+       
+    print("connecting to node...")
+    sock.connect((host,port))
+    
+    # Version message
+    ver_msg = make_message("version", version_message(last_block))
+    print("Version message", ver_msg.hex())
+    sock.send( ver_msg )
+    
+    m = sock.recv( 1024 )
+    print("receive", m.hex())
+    
+    m = sock.recv( 1024 )
+    print("receive", m.hex())
+    
+    # Transaction message
+    tx_msg = make_message("tx", tx)
+    print("Transaction message", tx_msg.hex())
+    
+    sock.send( tx_msg )
+    
+    sock.close()
+    print("end")
