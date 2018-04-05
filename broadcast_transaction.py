@@ -179,17 +179,17 @@ if __name__ == '__main__':
     #   host (str) : IPv4 address of BCH node
     #   port (int) : port (DEFAULT_PORT = 8333)
     
-    last_block = 524119
+    last_block = 524534
     
-    wifkey = ""
+    wifkey = "5JNWbqkonfSFXmF5JxSgDAbmV21tVSbNiWpEPCymCw5cpkChcHg"
     recipient_address = "bitcoincash:qq7ur36zd8uq2wqv0mle2khzwt79ue9ty57mvd95r0"
-    amount = 49558
+    amount = 49116
     locktime = last_block # in electron : height of the last block
-    prevout_id = "f08a8881081a16045ab6d7df26e2c29961f20247c5bb802816cf8b55b2f772a5"
+    prevout_id = "30745c2734e341b65cb348a3b73f1fbd810c516bf959f806862f3c703df972b7"
     prevout_index = 0
-    prevout_value = 49808 # previous output value
+    prevout_value = 49366 # previous output value
     
-    host = "47.89.180.162"
+    host = "88.130.71.155"
     port = 8333
     
     # Construction of transaction payload
@@ -203,11 +203,12 @@ if __name__ == '__main__':
     print("Transaction fees (sat)", prevout_value-amount)
     print()
     
-    # Connexion to bitcoin network
+    # Connexion to Bitcoin Cash network
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
        
     print("connecting to node...")
     sock.connect((host,port))
+    print("ok")
     
     # Version message
     ver_msg = make_message("version", version_message(last_block))
@@ -225,6 +226,9 @@ if __name__ == '__main__':
     print("Transaction message", tx_msg.hex())
     
     sock.send( tx_msg )
+    
+    m = sock.recv( 1024 )
+    print("receive", m.hex())
     
     sock.close()
     print("end")
