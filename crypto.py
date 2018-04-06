@@ -30,7 +30,7 @@ def hash160(x):
 WIF_PREFIX = 0x80
 
 class ModifiedSigningKey(ecdsa.SigningKey):
-    """Enforce low S values in signatures"""
+    """ Enforce low S values in signatures. """
 
     def sign_number(self, number, entropy=None, k=None):
         curve = ecdsa.SECP256k1
@@ -67,7 +67,7 @@ class EllipticCurveKey:
         assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_der)        
         return signature
     
-    def serialized_pubkey(self):
+    def serialize_pubkey(self):
         P = self.pubkey.point
         if self.compressed:
             return bytes.fromhex( "{:02x}{:064x}".format( 2+(P.y()&1), P.x() ) )

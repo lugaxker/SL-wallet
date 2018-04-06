@@ -216,7 +216,7 @@ class Address:
         self.kind = kind
         assert len(hash_addr) == 20
         self.hash_addr = hash_addr
-        
+        self.fmt = self.FMT_CASH
         
     @classmethod
     def from_cash_string(self, string):
@@ -280,24 +280,24 @@ class Address:
             verbyte = 5
         return Base58.encode_check(bytes([verbyte]) + self.hash_addr)
     
-    def to_string(self, fmt):
-        if fmt == self.FMT_CASH:
+    def to_string(self):
+        if self.fmt == self.FMT_CASH:
             return self.to_cash()
-        elif fmt == self.FMT_LEGACY:
+        elif self.fmt == self.FMT_LEGACY:
             return self.to_legacy()
         else:
             raise AddressError('unrecognised format')
         
-    def to_full_string(self, fmt):
-        if fmt == self.FMT_CASH:
+    def to_full_string(self):
+        if self.fmt == self.FMT_CASH:
             return self.to_full_cash()
-        elif fmt == self.FMT_LEGACY:
+        elif self.fmt == self.FMT_LEGACY:
             return self.to_legacy()
         else:
             raise AddressError('unrecognised format')
         
     def __str__(self):
-        return self.to_full_string(self.FMT_CASH)
+        return self.to_full_string()
 
     def __repr__(self):
-        return '<Address {}>'.format(self.__str__())
+        return '<Address {}>'.format(self.to_string())

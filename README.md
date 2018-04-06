@@ -3,6 +3,16 @@ SL-wallet
 
 Project of a multicurrency lightweight wallet.
 
+### Done
+
+`broadcast_transaction.py` Broadcast a transaction on Bitcoin Cash network.
+
 ### In progress
 
-`broadcast_transaction.py` : broadcast a transaction on Bitcoin Cash network. 
+`transaction.py` Estimate size of transaction in order to compute transaction fees
+
+### To do
+
+`wallet.py` (yet to create) Hierarchical Deterministic wallet (BIP-39, BIP-32, BIP-44): deterministic generation of keys and addresses from a 12-words seed phrase.
+
+`blockchain.py` (yet to create): manage blockchain headers.
