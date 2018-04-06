@@ -15,4 +15,4 @@ Project of a multicurrency lightweight wallet.
 
 `wallet.py` (yet to create) Hierarchical Deterministic wallet (BIP-39, BIP-32, BIP-44): deterministic generation of keys and addresses from a 12-words seed phrase.
 
-`blockchain.py` (yet to create): manage blockchain headers.
+`blockchain.py` (yet to create) Manage blockchain headers.
