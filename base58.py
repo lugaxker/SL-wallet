@@ -11,21 +11,9 @@ def to_bytes(x):
         return bytes(x)
     raise TypeError('{} is not bytes ({})'.format(x, type(x)))
 
-def bytes_to_int(be_bytes):
-    '''Interprets a big-endian sequence of bytes as an integer'''
-    return int.from_bytes(be_bytes, 'big')
-
-def int_to_bytes(value):
-    '''Converts an integer to a big-endian sequence of bytes'''
-    return value.to_bytes((value.bit_length() + 7) // 8, 'big')
-
-def sha256(x):
-    '''Simple wrapper of hashlib sha256.'''
-    return _sha256(x).digest()
-
 def dsha256(x):
     '''SHA-256 of SHA-256, as used extensively in bitcoin.'''
-    return sha256(sha256(x))
+    return _sha256( _sha256(x).digest() ).digest()
 
 
 class Base58Error(Exception):
@@ -58,7 +46,7 @@ class Base58:
         for c in txt:
             value = value * 58 + Base58.char_value(c)
 
-        result = int_to_bytes(value)
+        result = value.to_bytes((value.bit_length() + 7) // 8, 'big')
 
         # Prepend leading zero bytes if necessary
         count = 0
@@ -74,7 +62,7 @@ class Base58:
     @staticmethod
     def encode(be_bytes):
         """Converts a big-endian bytearray into a base58 string."""
-        value = bytes_to_int(be_bytes)
+        value = int.from_bytes(be_bytes, 'big')
 
         txt = ''
         while value:
