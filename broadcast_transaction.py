@@ -23,11 +23,10 @@ OP_HASH160= 0xa9
 OP_EQUALVERIFY = 0x88
 OP_CHECKSIG = 0xac
 
-def construct_transaction( wifkey, output_address, amount, locktime, prevout_txid, prevout_index, prevout_value ):
+def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid, prevout_index, prevout_value ):
     ''' Construct a Bitcoin Cash one-input / one-output transaction.
     wifkey (str) : private key (Wallet Import Format)
     output_address (str) : recipient address (legacy or cash format)
-    amount (int) : amount in satoshis 
     prevout_txid (str) : previous output transaction id
     prevout_index (int) : index of the output in the previous transaction
     prevout_value (int) : previous output value in satoshis'''
@@ -38,24 +37,33 @@ def construct_transaction( wifkey, output_address, amount, locktime, prevout_txi
     # Public key and address (Public Key Hash)
     publicKey = eckey.serialize_pubkey() 
     input_address = Address.from_pubkey( publicKey ).to_string()
-        
-    print("Public key", publicKey.hex())
-    print("Input address", input_address)
-    print("Output address", output_address)
-    print("Amount sent (sat)", amount)
-    print()
     
     # Creation of the transaction
-    tx = Transaction.minimal_transaction(input_address, output_address, amount, prevout_txid, prevout_index, prevout_value, locktime)
+    tx = Transaction.minimal_transaction(input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     
-    # Signature
-    tx.sign(eckey)
+    # what we want:
+    #   - one function which estimates fee to pay
+    #   - one function which builds the actual transaction
     
-    # Computation of the raw serialized transaction
-    rawtx = tx.serialize()
-    txid = tx.txid()
+    tx.sign(eckey) # signature 
+    tx.serialize() # computation of raw transaction
     
-    return rawtx, txid
+    tx.compute_fee()
+    fee = tx.get_fee()
+    
+    tx.sign(eckey) # signature 
+    tx.serialize() # computation of raw transaction
+    
+    print("Input address", input_address)
+    print("Output address", output_address)
+    print("Amount sent (sat)", prevout_value-fee)
+    print("Fee (sat)", fee)
+    print()
+    
+    if tx.iscomplete:
+        return tx.raw, tx.txid(), fee
+    else: 
+        return None
     
     
 if __name__ == '__main__':
@@ -72,8 +80,7 @@ if __name__ == '__main__':
     # To send a new transaction, you have to modify:
     #   last_block (int) : height of the last block
     #   wifkey (str) : private key (WIF) of the sending address
-    #   output_address (str) : recipient address (legacy or cash format)
-    #   amount (int) : amount in satoshis 
+    #   output_address (str) : recipient address (legacy or cash format) 
     #   prevout_txid (str) : previous output transaction id
     #   prevout_index (int) : index of the output in the previous transaction
     #   prevout_value (int) : previous output value in satoshis
@@ -85,7 +92,6 @@ if __name__ == '__main__':
     
     wifkey = "5JNWbqkonfSFXmF5JxSgDAbmV21tVSbNiWpEPCymCw5cpkChcHg"
     output_address = "qq7ur36zd8uq2wqv0mle2khzwt79ue9ty57mvd95r0"
-    amount = 49116
     locktime = last_block # in electron : height of the last block
     prevout_txid = "30745c2734e341b65cb348a3b73f1fbd810c516bf959f806862f3c703df972b7"
     prevout_index = 0
@@ -95,12 +101,12 @@ if __name__ == '__main__':
     port = 8333
     
     # Construction of transaction payload
-    tx, txid = construct_transaction( wifkey, output_address, amount, locktime, prevout_txid, prevout_index, prevout_value )
+    tx, txid, fee = construct_simple_transaction( wifkey, output_address, locktime, prevout_txid, prevout_index, prevout_value )
     print("RAW TRANSACTION")
     print(tx.hex())
     print()
     print("Transaction identifier", txid.hex())
-    print("Transaction fees (sat)", prevout_value-amount)
+    print("Transaction fees (sat)", fee)
     print()
     
     ## Connexion to Bitcoin Cash network

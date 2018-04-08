@@ -51,7 +51,7 @@ def push_data(data):
     else:
         raise ValueError("Data is too long")
     
-def locking_script_from_address( addr ):
+def locking_script( addr ):
     assert isinstance( addr, Address )
     if addr.kind == Address.ADDR_P2PKH:
         return (bytes([OP_DUP, OP_HASH160]) + 
