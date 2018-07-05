@@ -3,14 +3,6 @@
 
 from hashlib import sha256 as _sha256
 
-def to_bytes(x):
-    '''Convert to bytes which is hashable.'''
-    if isinstance(x, bytes):
-        return x
-    if isinstance(x, bytearray):
-        return bytes(x)
-    raise TypeError('{} is not bytes ({})'.format(x, type(x)))
-
 def dsha256(x):
     '''SHA-256 of SHA-256, as used extensively in bitcoin.'''
     return _sha256( _sha256(x).digest() ).digest()

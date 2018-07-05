@@ -3,6 +3,8 @@ SL-wallet
 
 Project of a multicurrency lightweight wallet.
 
+## Prerequisites
+
 ### Done
 
 `broadcast_transaction.py` Broadcast a transaction on Bitcoin Cash network.

@@ -42,7 +42,7 @@ def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid
     tx = Transaction.minimal_transaction(input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     
     # what we want:
-    #   - one function which estimates fee to pay
+    #   - one function which estimates the fee to pay
     #   - one function which builds the actual transaction
     
     tx.sign(eckey) # signature 
@@ -90,15 +90,15 @@ if __name__ == '__main__':
     
     last_block = 524534
     
-    wifkey = "5JNWbqkonfSFXmF5JxSgDAbmV21tVSbNiWpEPCymCw5cpkChcHg"
-    output_address = "qq7ur36zd8uq2wqv0mle2khzwt79ue9ty57mvd95r0"
+    wifkey = "5JdSD57xmgcASmvXw4L1VqKQcboFjWdfA3GG63ShxA4kbE4ZHhh"
+    output_address = "1GpSjtgw6fqfiZ6U5xxjbcUr4TWeCrrYj9"
     locktime = last_block # in electron : height of the last block
-    prevout_txid = "30745c2734e341b65cb348a3b73f1fbd810c516bf959f806862f3c703df972b7"
+    prevout_txid = "0b6e3e3506df02cd5726c924f427cdfca302293107d66dd54d739bba9ae47030"
     prevout_index = 0
-    prevout_value = 49366 # previous output value
+    prevout_value = 41424 # previous output value
     
-    host = "88.130.71.155"
-    port = 8333
+    #host = "84.46.18.73"
+    #port = 8333
     
     # Construction of transaction payload
     tx, txid, fee = construct_simple_transaction( wifkey, output_address, locktime, prevout_txid, prevout_index, prevout_value )
@@ -116,9 +116,9 @@ if __name__ == '__main__':
     #sock.connect((host,port))
     #print("ok")
     
-    ## Version message
-    #ver_msg = make_message("version", version_message(last_block))
-    #print("Version message", ver_msg.hex())
+    # Version message
+    ver_msg = make_message("version", version_message(0xffff7f000001, 8333, last_block))
+    print("Version message", ver_msg.hex())
     #sock.send( ver_msg )
     
     #m = sock.recv( 1024 )
@@ -127,9 +127,9 @@ if __name__ == '__main__':
     #m = sock.recv( 1024 )
     #print("receive", m.hex())
     
-    ## Transaction message
-    #tx_msg = make_message("tx", tx)
-    #print("Transaction message", tx_msg.hex())
+    # Transaction message
+    tx_msg = make_message("tx", tx)
+    print("Transaction message", tx_msg.hex())
     
     #sock.send( tx_msg )
     
@@ -137,4 +137,4 @@ if __name__ == '__main__':
     #print("receive", m.hex())
     
     #sock.close()
-    #print("end")
+    #print("end") 

@@ -22,7 +22,7 @@ PROTOCOL_VERSION = 70015
 SPV_SERVICES = 0
 RELAY = False
 
-DEFAULT_IPV6_ADDRESS = 0x00000000000000000000ffff7f000001 #127.0.0.1
+DEFAULT_IPV6_ADDRESS = 0xffff7f000001 #127.0.0.1
 
 def make_message( cmd, payload ):
     ''' Message Structure for Bitcoin Protocol.
@@ -35,7 +35,7 @@ def make_message( cmd, payload ):
     checksum = dsha256( payload )[:4]
     return magic + command + length + checksum + payload
 
-def version_message(last_block):
+def version_message(recv_ip, recv_port, last_block):
     ''' Version message. '''
     
     # Protocol Version
@@ -61,13 +61,13 @@ def version_message(last_block):
     # Nonce
     nonce = random.getrandbits(64).to_bytes(8, 'little')
     
-    user_agent_bytes = bytes([0x00])
+    user_agent = bytes(0)
+    user_agent_bytes = bytes([len(user_agent)])
     start_height = last_block.to_bytes(4, 'little')
     relay = bytes([RELAY])
     
-    payload = version + services + timestamp + addr_recv + addr_trans + nonce + user_agent_bytes + start_height + relay
-    
-    return payload
+    return (version + services + timestamp + addr_recv + addr_trans + nonce + 
+            user_agent_bytes + start_height + relay)
     
 
 

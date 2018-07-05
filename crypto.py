@@ -30,7 +30,7 @@ def hash160(x):
 WIF_PREFIX = 0x80
 
 class ModifiedSigningKey(ecdsa.SigningKey):
-    """ Enforce low S values in signatures. """
+    '''Enforce low S values in signatures (BIP-62).'''
 
     def sign_number(self, number, entropy=None, k=None):
         curve = ecdsa.SECP256k1

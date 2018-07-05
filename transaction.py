@@ -73,16 +73,16 @@ class Transaction:
         publicKey = bytes.fromhex(txin['pubkey'])
         signature = bytes.fromhex(txin['signature'])
         unlockingScript = unlocking_script( publicKey, signature )
-        lengthUnlockingScript = var_int( len( unlockingScript ) )
+        unlockingScriptSize = var_int( len( unlockingScript ) )
         nSequence = txin['sequence'].to_bytes(4,'little')
-        return outpoint + lengthUnlockingScript + unlockingScript + nSequence
+        return outpoint + unlockingScriptSize + unlockingScript + nSequence
     
     def serialize_output(self):
         txout = self._output
         nAmount = txout['value'].to_bytes(8,'little')
         lockingScript = locking_script( txout['address'] )
-        lengthLockingScript = var_int( len(lockingScript) )
-        return nAmount + lengthLockingScript + lockingScript
+        lockingScriptSize = var_int( len(lockingScript) )
+        return nAmount + lockingScriptSize + lockingScript
         
     def serialize_preimage(self):
         ''' Serializes the preimage of the transaction (BIP-143).'''
@@ -102,15 +102,15 @@ class Transaction:
         hashSequence = dsha256( nSequence )
         
         prevLockingScript = locking_script( self._input['address'] )
-        lengthPrevLockingScript = var_int( len(prevLockingScript) )
+        prevLockingScriptSize = var_int( len(prevLockingScript) )
         
         lockingScript = locking_script( self._output['address'] )
-        lengthLockingScript = var_int( len(lockingScript) )
+        lockingScriptSize = var_int( len(lockingScript) )
         
-        hashOutputs = dsha256( nAmount + lengthLockingScript + lockingScript )       
+        hashOutputs = dsha256( nAmount + lockingScriptSize + lockingScript )       
         
         return (nVersion + hashPrevouts + hashSequence + outpoint + 
-                lengthPrevLockingScript + prevLockingScript + prevValue +
+                prevLockingScriptSize + prevLockingScript + prevValue +
                 nSequence + hashOutputs + nLocktime + nHashtype)
     
     def serialize(self):
@@ -135,6 +135,8 @@ class Transaction:
                             preimage, plus signature hashtype
         publicKey (bytes) : serialized public key'''
         txin = self._input
+        print("PREIMAGE")
+        print( self.serialize_preimage().hex() )
         prehash = dsha256( self.serialize_preimage() )
         signature = eckey.sign( prehash ) + bytes( [self.hashtype & 0xff] )
         publicKey = eckey.serialize_pubkey()

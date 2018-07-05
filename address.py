@@ -209,9 +209,9 @@ class Address:
     FMT_LEGACY = 1
     
     CASHADDR_PREFIX = "bitcoincash"
+    SEGWIT_HRP = "bc"
     
     def __init__(self, hash_addr, kind):
-        ''' Initialisateur '''
         assert kind in (self.ADDR_P2PKH, self.ADDR_P2SH)
         self.kind = kind
         assert len(hash_addr) == 20
@@ -259,13 +259,22 @@ class Address:
         be bytes or a hex string.'''
         if isinstance(pubkey, str):
             pubkey = bytes.fromhex(pubkey)
-        #PublicKey.validate(pubkey)
         return self(hash160(pubkey), self.ADDR_P2PKH)
     
     @classmethod
     def from_P2PKH_hash(self, hash_addr):
         '''Initialize from a P2PKH hash.'''
         return self(hash_addr, self.ADDR_P2PKH)
+    
+    @classmethod
+    def from_P2SH_hash(self, hash_addr):
+        '''Initialize from a P2SH hash.'''
+        return self(hash_addr, self.ADDR_P2SH)
+    
+    @classmethod
+    def from_script(self, script):
+        '''Initialize from a P2SH hash.'''
+        return self(hash160(script), self.ADDR_P2SH)
             
     def to_cash(self):
         return CashAddr.encode(self.CASHADDR_PREFIX, self.kind, self.hash_addr)
