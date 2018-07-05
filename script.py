@@ -3,6 +3,9 @@
 
 from address import Address
 
+class ScriptError(Exception):
+    '''Exception used for Script errors.'''
+
 # Bitcoin script operation codes (op codes)
     
 # Constants
@@ -30,8 +33,9 @@ OP_EQUAL = 0x87
 OP_EQUALVERIFY = 0x88
  
 # Crypto
-OP_HASH160= 0xa9
+OP_HASH160 = 0xa9
 OP_CHECKSIG = 0xac
+OP_CHECKMULTISIG = 0xae
 
 def push_data(data):
     '''Returns the op codes to push the data on the stack.'''
@@ -50,6 +54,21 @@ def push_data(data):
         return bytes([OP_PUSHDATA4]) + n.to_bytes(4, 'little') + data
     else:
         raise ValueError("Data is too long")
+    
+def multisig_locking_script(m, pubkeys):
+    ''' Returns m-of-n multisig locking script (also called redeem script). '''
+    n = len(pubkeys)
+    if not 1 <= m <= n <= 3:
+        raise ScriptError('{:d}-of-{:d} multisig script not possible'.format(m, n))
+    OP_m = OP_1 + m - 1
+    OP_n = OP_1 + n - 1
+    serpubkeys = b''.join(push_data(pubkey) for pubkey in pubkeys)
+    return ( bytes([OP_m]) + serpubkeys + bytes([OP_n, OP_CHECKMULTISIG]) )
+
+def multisig_unlocking_script(sigs):
+    ''' Returns m-of-n multisig unlocking script. '''
+    return ( bytes([OP_0]) + b''.join(push_data(sig) for sig in sigs) )
+    
     
 def locking_script( addr ):
     assert isinstance( addr, Address )
