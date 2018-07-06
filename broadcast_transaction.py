@@ -17,12 +17,6 @@ BCH_SIGHASH_TYPE = 0x41
 TRANSACTION_VERSION_1 = 1 # version 2 transactions exist
 SEQUENCE_NUMBER = 0xffffffff - 1
 
-# OP codes (make a dictionnary ?)
-OP_DUP = 0x76
-OP_HASH160= 0xa9
-OP_EQUALVERIFY = 0x88
-OP_CHECKSIG = 0xac
-
 def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid, prevout_index, prevout_value ):
     ''' Construct a Bitcoin Cash one-input / one-output transaction.
     wifkey (str) : private key (Wallet Import Format)
