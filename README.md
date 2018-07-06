@@ -5,6 +5,10 @@ Project of a multicurrency lightweight wallet.
 
 ## Prerequisites
 
+Python 3.5 or higher. Packages : `ecdsa`, `hashlib`, `socket`.
+
+## Tasks
+
 ### Done
 
 `broadcast_transaction.py` Broadcast a transaction on Bitcoin Cash network.
