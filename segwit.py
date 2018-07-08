@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from crypto import (hash160, EllipticCurveKey)
+from crypto import (sha256, hash160, EllipticCurveKey)
 from base58 import Base58
 from address import Address
-from script import push_data
+from script import push_data, multisig_locking_script
 
 class SegWitAddr:
     """ Reference implementation for Bech32 and segwit addresses. """
@@ -126,18 +126,36 @@ if __name__ == '__main__':
     # Public key and address (Public Key Hash)
     publicKey = eckey.serialize_pubkey()
     addr = Address.from_pubkey( publicKey )
-    print( "Clé privée (WIF)", wifkey )
-    print( "Adresse (legacy)", addr.to_legacy() )
+    print( "Private Key (WIF)", wifkey )
+    print( "Legacy Address (P2PKH)", addr.to_legacy() )
     
     # Witness version (0)
     witver = 0
     
     # Native segwit P2WPKH address
     segaddr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, addr.hash_addr )
-    print("Adresse SegWit (P2WPKH)", segaddr)
+    print("SegWit Address (P2WPKH)", segaddr)
     
     # P2SH-nested segwit P2WPKH address
     witness_script = bytes([witver]) + push_data( addr.hash_addr )
     segaddr_p2sh = Address.from_script( witness_script )
-    print("Adresse SegWit (P2WPKH-P2SH)", segaddr_p2sh.to_legacy() )
+    print("SegWit Address (P2WPKH-P2SH)", segaddr_p2sh.to_legacy() )
+    
+    # Native P2WSH multisig address
+    wifkeys_multisig = ["KzwQjFQPytv5x6w2cLdF4BSweGVCPEt8b8HbcuTi8e75LRQfw94L",
+                        "Ky4yk7uTBZ1EDbqyVfkvoZXURpWdRCxTpCERZb4gkn67fY8kK95R",
+                        "Kz3Htg8mSfC997qkBxpVCdxYhEoRcFj5ikUjE96ipVAJPou7MwRD"]
+    pubkeys = [ EllipticCurveKey.from_wifkey( wk ).serialize_pubkey() for wk in wifkeys_multisig ]
+    print()
+    print("--- 2-of-3 multisig address ---")
+    print("Private keys")
+    for wk in wifkeys_multisig:
+        print("", wk)
+    redeem_script = multisig_locking_script(pubkeys, 2)
+    redeem_script_hash = sha256( redeem_script )
+    print("SHA256 of redeem script", redeem_script_hash.hex())
+    print("Legacy Address (P2SH)", Address.from_script( redeem_script ).to_legacy())
+    
+    p2wsh_addr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, redeem_script_hash )
+    print("SegWit Address (P2WSH)", p2wsh_addr)
     
