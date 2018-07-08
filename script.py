@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from crypto import hash160
 from address import Address
 
 class ScriptError(Exception):
@@ -55,7 +56,7 @@ def push_data(data):
     else:
         raise ValueError("Data is too long")
     
-def multisig_locking_script(m, pubkeys):
+def multisig_locking_script(pubkeys, m):
     ''' Returns m-of-n multisig locking script (also called redeem script). '''
     n = len(pubkeys)
     if not 1 <= m <= n <= 3:
@@ -68,19 +69,34 @@ def multisig_locking_script(m, pubkeys):
 def multisig_unlocking_script(sigs):
     ''' Returns m-of-n multisig unlocking script. '''
     return ( bytes([OP_0]) + b''.join(push_data(sig) for sig in sigs) )
-    
-    
+
 def locking_script( addr ):
     assert isinstance( addr, Address )
     if addr.kind == Address.ADDR_P2PKH:
         return (bytes([OP_DUP, OP_HASH160]) + 
             push_data( addr.hash_addr ) + 
             bytes([OP_EQUALVERIFY, OP_CHECKSIG]))
+    elif addr.kind == Address.ADDR_P2SH:
+        return (bytes([OP_HASH160]) + push_data( addr.hash_addr ) 
+                + bytes([OP_EQUAL]))
     return None
 
-def unlocking_script( publicKey, signature ):
-    assert isinstance( publicKey, (bytes, bytearray) )
-    assert isinstance( signature, (bytes, bytearray) )
-    return (push_data( signature ) + push_data( publicKey ))
+def unlocking_script( addr, pubkeys, signatures ):
+    assert isinstance( addr, Address )
+    assert isinstance( pubkeys[0], (bytes, bytearray) )
+    assert isinstance( signatures[0], (bytes, bytearray) )
+    if addr.kind == Address.ADDR_P2PKH:
+        sig = signatures[0]
+        pubkey = pubkeys[0]
+        assert addr.hash_addr == hash160(pubkey) 
+        return (push_data( sig ) + push_data( pubkey ))
+    elif addr.kind == Address.ADDR_P2SH:
+        redeemScript = multisig_locking_script(pubkeys, len(signatures))
+        assert addr.hash_addr == hash160(redeemScript) 
+        return (multisig_unlocking_script(signatures) 
+                + push_data( redeemScript ))
+
+
+    
     
     

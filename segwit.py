@@ -127,7 +127,7 @@ if __name__ == '__main__':
     publicKey = eckey.serialize_pubkey()
     addr = Address.from_pubkey( publicKey )
     print( "Clé privée (WIF)", wifkey )
-    print( "Adresse (legacy) ", addr.to_legacy() )
+    print( "Adresse (legacy)", addr.to_legacy() )
     
     # Witness version (0)
     witver = 0

@@ -8,7 +8,7 @@ from script import *
 SEQUENCE_NUMBER = 0xffffffff - 1
 BCH_SIGHASH_TYPE = 0x41
 
-FEE_RATE = 1 # in satoshis per byte (sat/B)
+FEE_RATE = 2 # in satoshis per byte (sat/B)
 
 def var_int(i):
     '''Returns variable length integer used in the transaction payload.'''
@@ -40,26 +40,33 @@ class Transaction:
         
     @classmethod
     def minimal_transaction(self, input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime):
-        ''' Minimal transaction. '''
+        ''' Minimal transaction: one-input-one-output transaction. '''
         txin = {}
         txout = {}
 
         # Input address
         txin['address'] = Address.from_string( input_address )
+        txin['sequence'] = SEQUENCE_NUMBER
         
         txin['txid'] = prevout_txid
         txin['index'] = prevout_index
         txin['value'] = prevout_value
-        
-        txin['sequence'] = SEQUENCE_NUMBER
-        txin['type'] = 0
-        
+
         # Output address
-        txout['type'] = 0
         txout['address'] = Address.from_string( output_address )
         txout['value'] = 0 # 
         
         return self(txin, txout, locktime)
+    
+    def get_preimage_script(self):
+        txin = self._input
+        if txin['address'].kind == Address.ADDR_P2PKH:
+            return locking_script( txin['address'] )
+        elif txin['address'].kind == Address.ADDR_P2SH:
+            m = txin['nsigs']
+            pubkeys = [bytes.fromhex(pk) for pk in txin['pubkeys']]
+            return multisig_locking_script( pubkeys, m )
+        return None
     
     def serialize_outpoint(self):
         ''' Seraializes the outpoint of the input (prev. txid + prev. index).'''        
@@ -70,9 +77,9 @@ class Transaction:
     def serialize_input(self):
         txin = self._input
         outpoint  = self.serialize_outpoint()
-        publicKey = bytes.fromhex(txin['pubkey'])
-        signature = bytes.fromhex(txin['signature'])
-        unlockingScript = unlocking_script( publicKey, signature )
+        pubkeys = [bytes.fromhex(pk) for pk in txin['pubkeys']]
+        signatures = [bytes.fromhex(sig) for sig in txin['signatures']]
+        unlockingScript = unlocking_script(txin['address'], pubkeys, signatures)
         unlockingScriptSize = var_int( len( unlockingScript ) )
         nSequence = txin['sequence'].to_bytes(4,'little')
         return outpoint + unlockingScriptSize + unlockingScript + nSequence
@@ -90,10 +97,13 @@ class Transaction:
         nLocktime = self.locktime.to_bytes(4,'little')
         nHashtype = self.hashtype.to_bytes(4,'little') # signature hashtype (little-endian)
         
-        nSequence = self._input['sequence'].to_bytes(4,'little')
-        nAmount = self._output['value'].to_bytes(8,'little')
+        txin = self._input
+        txout = self._output
+        
+        nSequence = txin['sequence'].to_bytes(4,'little')
+        nAmount = txout['value'].to_bytes(8,'little')
         try:
-            prevValue = self._input['value'].to_bytes(8,'little')
+            prevValue = txin['value'].to_bytes(8,'little')
         except KeyError:
             raise TransactionError("previous output value missing")
         
@@ -101,10 +111,18 @@ class Transaction:
         hashPrevouts = dsha256( outpoint )
         hashSequence = dsha256( nSequence )
         
-        prevLockingScript = locking_script( self._input['address'] )
+        input_addr = txin['address']
+        if input_addr.kind == Address.ADDR_P2PKH:
+            prevLockingScript = locking_script( input_addr )
+        elif input_addr.kind == Address.ADDR_P2SH:
+            pubkeys = [bytes.fromhex(pk) for pk in txin['pubkeys']]
+            prevLockingScript = multisig_locking_script( pubkeys, txin['nsigs'])
+        else:
+            raise TransactionError("wrong type of address")
+        
         prevLockingScriptSize = var_int( len(prevLockingScript) )
         
-        lockingScript = locking_script( self._output['address'] )
+        lockingScript = locking_script( txout['address'] )
         lockingScriptSize = var_int( len(lockingScript) )
         
         hashOutputs = dsha256( nAmount + lockingScriptSize + lockingScript )       
@@ -134,14 +152,40 @@ class Transaction:
         signature (bytes) : DER-encoded signature of the double sha256 of the
                             preimage, plus signature hashtype
         publicKey (bytes) : serialized public key'''
-        txin = self._input
         print("PREIMAGE")
         print( self.serialize_preimage().hex() )
         prehash = dsha256( self.serialize_preimage() )
         signature = eckey.sign( prehash ) + bytes( [self.hashtype & 0xff] )
         publicKey = eckey.serialize_pubkey()
-        txin['pubkey'] = publicKey.hex()
-        txin['signature'] = signature.hex()
+        self._input['pubkeys'] = [ publicKey.hex() ]
+        self._input['signatures'] = [ signature.hex() ]
+    
+    def sign_multisig(self, eckeys, pubkeys, nsigs):
+        ''' Signs a multisig transaction.
+        eckeys: list of pairs of elliptic curve keys
+        pubkeys: sorted list of public keys involved in the multisig address
+        nsigs: number of signatures required to unlock the multisig address '''
+        assert(len(eckeys) == nsigs)
+        
+        # Public keys
+        self._input['pubkeys'] = [pk.hex() for pk in pubkeys]
+        self._input['nsigs'] = nsigs
+        
+        # Sorting of keys
+        sorted_eckeys = []
+        for eckey in eckeys:
+            pubkey = eckey.serialize_pubkey()
+            assert(pubkey in pubkeys)
+            sorted_eckeys += [(pubkeys.index(pubkey), eckey)]
+        sorted_eckeys.sort(key = lambda x: x[0])
+        eckeys = [k[1] for k in sorted_eckeys]
+        
+        # Signatures        
+        prehash = dsha256( self.serialize_preimage() )
+        signatures = [ eckey.sign( prehash ) + bytes( [self.hashtype & 0xff] ) for eckey in eckeys ]
+        self._input['signatures'] = [sig.hex() for sig in signatures]
+        
+        
     
     def estimate_size(self):
         if not self.iscomplete:
