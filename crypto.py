@@ -123,9 +123,21 @@ XPRV_HEADER = 0x0488ade4
 XPUB_HEADER = 0x0488b21e
 HARDENED = 0x80000000
 
-def mnemonic_to_seed(mnemonic, passphrase = ""):
+def seed_from_mnemonic( mnemonic, passphrase = "" ):
     ''' Compute BIP-39 seed from BIP-39 mnemonic phrase. Passphrase is optional. '''
     return pbkdf2.PBKDF2(mnemonic, "mnemonic" + passphrase, iterations = 2048, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
+
+def root_from_seed( seed ):
+    ''' Compute BIP-32 root (master extended keys) from seed. '''
+    I = hmac_sha512(b"Bitcoin seed", seed)
+    master_private_key = I[0:32]
+    if not ( 0 < int.from_bytes(master_private_key,'big') < ecdsa.ecdsa.generator_secp256k1.order() ):
+        raise KeyDerivationError("wrong seed: master private key must be lower than ec generator order")
+    master_chain_code = I[32:]
+    master_public_key = EllipticCurveKey( master_private_key, compressed=True ).serialize_pubkey()
+    xprv = encode_xkey( master_private_key, master_chain_code )
+    xpub = encode_xkey( master_public_key, master_chain_code )
+    return xprv, xpub
 
 def encode_xkey(key, chain_code, depth = 0, fingerprint=b'\x00'*4, child_number=b'\x00'*4):
     assert len(key) in (32,33)
