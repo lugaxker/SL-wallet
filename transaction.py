@@ -59,17 +59,19 @@ class Transaction:
         return self(txin, txout, locktime)
     
     def get_preimage_script(self):
+        ''' Returns the previous locking script for a P2PKH address,
+        and the redeem script for a P2SH address (only multisig for now). '''
         txin = self._input
-        if txin['address'].kind == Address.ADDR_P2PKH:
-            return locking_script( txin['address'] )
-        elif txin['address'].kind == Address.ADDR_P2SH:
-            m = txin['nsigs']
+        input_addr = txin['address']
+        if input_addr.kind == Address.ADDR_P2PKH:
+            return locking_script( input_addr )
+        elif input_addr.kind == Address.ADDR_P2SH:
             pubkeys = [bytes.fromhex(pk) for pk in txin['pubkeys']]
-            return multisig_locking_script( pubkeys, m )
+            return multisig_locking_script( pubkeys, txin['nsigs'] )
         return None
     
     def serialize_outpoint(self):
-        ''' Seraializes the outpoint of the input (prev. txid + prev. index).'''        
+        ''' Serializes the outpoint of the input (prev. txid + prev. index).'''        
         txin = self._input
         return (bytes.fromhex( txin['txid'] )[::-1] +
                 txin['index'].to_bytes(4,'little') )
@@ -110,16 +112,8 @@ class Transaction:
         outpoint = self.serialize_outpoint()
         hashPrevouts = dsha256( outpoint )
         hashSequence = dsha256( nSequence )
-        
-        input_addr = txin['address']
-        if input_addr.kind == Address.ADDR_P2PKH:
-            prevLockingScript = locking_script( input_addr )
-        elif input_addr.kind == Address.ADDR_P2SH:
-            pubkeys = [bytes.fromhex(pk) for pk in txin['pubkeys']]
-            prevLockingScript = multisig_locking_script( pubkeys, txin['nsigs'])
-        else:
-            raise TransactionError("wrong type of address")
-        
+
+        prevLockingScript = self.get_preimage_script()
         prevLockingScriptSize = var_int( len(prevLockingScript) )
         
         lockingScript = locking_script( txout['address'] )
