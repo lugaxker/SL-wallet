@@ -13,9 +13,15 @@ Python 3.5 or higher. Packages : `ecdsa`, `hashlib`, `socket`.
 
 `broadcast_transaction.py` Broadcast a transaction on Bitcoin Cash network.
 
+`multisig.py` Creation and use of a multisig address
+
 ### In progress
 
 `transaction.py` Estimate size of transaction in order to compute transaction fees
+
+`segwit.py` Some SegWit stuff
+
+`hdwallet.py` Extended keys and child key derivation (functions will have to move to `crypto.py`)
 
 ### To do
 
