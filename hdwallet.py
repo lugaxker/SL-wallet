@@ -2,9 +2,8 @@
 # -*- coding: utf-8 -*-
 
 from crypto import (EllipticCurveKey, seed_from_mnemonic, root_from_seed, decode_xkey, private_derivation, public_derivation)
+from mnemonic import generate_mnemonic
 
-
-    
 if __name__ == '__main__':
     
     import sys
@@ -15,7 +14,10 @@ if __name__ == '__main__':
     # BIP-39 mnemonic phrase: hundred garage genius weekend echo explain deal swamp kitchen crunch rigid lyrics
     # BIP-39 seed: 923f4490a96a1de7fb21150be66ea57e93311bc47900eec571be5abed344bbf90ce72cbb2e8a51e65ec36c7d6701802cecb0766b20bf3df37899c3fb95ac8249
     # BIP-32 root key: xprv9s21ZrQH143K27eKKfiNJLPJSX8oYi8AP8VM7CRtCRiHxrJjG28RzjtoGrHZm5vh58uTmL2ExHUgoi2Z6zVZsLRzhMuAkSPuBCwtvcp6Dbr
-    # BIP-32 extended key: xprv9yE7utbAWFFM4VnbS2qBGJdzYkBceyb8DPKTtBoigQMnpQPhVDt1mfidaJww3ut9eMn1zwRDKsQwiPz93dkCrZREJHw8aSSgDbbtaFZEaiF
+    
+    nbits = 128
+    random_mnemonic = generate_mnemonic(nbits)
+    print("Random mnemonic phrase ({} words): {}".format((nbits + nbits//32) // 11, random_mnemonic))
     
     mnemonic = "hundred garage genius weekend echo explain deal swamp kitchen crunch rigid lyrics"
     print("Mnemonic phrase:", mnemonic)

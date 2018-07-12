@@ -248,6 +248,4 @@ def public_derivation(xpub, branch, sequence):
     fingerprint = hash160(Kpar)[0:4]
     child_number = index.to_bytes(4,'big')
     return encode_xkey(K, c, depth, fingerprint, child_number)
-
-
         
