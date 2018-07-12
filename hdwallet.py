@@ -71,3 +71,21 @@ if __name__ == '__main__':
     K_44_0_0_0_0, _, _, _, _ = decode_xkey( xpub_44_0_0_0_0 )
     print(" public key m/44'/0'/0'/0/0", K_44_0_0_0_0.hex())
     
+    print()
+    print("Dash keys and address")
+    branch = "m/"
+    sequence = "m/44'/5'/0'/0/0"
+    xprv_dash, xpub_dash = private_derivation(mxprv, branch, sequence)
+    k_dash, _, _, _, _ = decode_xkey(xprv_dash)
+    K_dash, _, _, _, _ = decode_xkey(xpub_dash)
+    
+    from base58 import Base58
+    payload = bytes([0xcc]) + k_dash + bytes([0x01])
+    wifkey_dash = Base58.encode_check( payload )
+    print(" private key {}".format(sequence), wifkey_dash)
+    print(" public key {}".format(sequence), K_dash.hex())
+    from crypto import hash160
+    dash_address = Base58.encode_check( bytes([0x4c]) + hash160(K_dash) )
+    print(" dash address {}".format(sequence), dash_address)
+    
+    
