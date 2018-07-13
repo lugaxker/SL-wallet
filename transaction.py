@@ -168,37 +168,19 @@ class Transaction:
             return None
         return dsha256( self.raw )[::-1]
     
-    def sign(self, eckey):
+    def sign(self, eckeys):
         '''Signs the transaction. 
-        eckey (EllipticCurveKey) : pair of elliptic curve keys
-        signature (bytes) : DER-encoded signature of the double sha256 of the
-                            preimage, plus signature hashtype
-        publicKey (bytes) : serialized public key'''
-        prehash = dsha256( self.serialize_preimage() )
-        signature = eckey.sign( prehash ) + bytes( [self.hashtype & 0xff] )
-        assert self._input['pubkeys'][0] == eckey.serialize_pubkey().hex()
-        self._input['signatures'] = [ signature.hex() ]
-    
-    def sign_multisig(self, eckeys):
-        ''' Signs a multisig transaction.
-        eckeys: list of pairs of elliptic curve keys '''
-        
-        # Number of signatures required
-        assert( len(eckeys) == self._input['nsigs'])
-        
-        # Public keys
-        pubkeys = [bytes.fromhex(pk) for pk in self._input['pubkeys']]
-        
-        # Sorting of keys
-        sorted_eckeys = []
-        for eckey in eckeys:
-            pubkey = eckey.serialize_pubkey()
-            assert(pubkey in pubkeys)
-            sorted_eckeys += [(pubkeys.index(pubkey), eckey)]
-        sorted_eckeys.sort(key = lambda x: x[0])
-        eckeys = [k[1] for k in sorted_eckeys]
-        
-        # Signatures        
+        eckeys (EllipticCurveKey list) : list of pairs of elliptic curve keys'''
+        assert( len(eckeys) == self._input['nsigs']) # Number of signatures required
+        pubkeys = [bytes.fromhex(pk) for pk in self._input['pubkeys']] # Public keys
+        if len(eckeys) > 1: # Sorting of keys
+            sorted_eckeys = []
+            for eckey in eckeys:
+                pubkey = eckey.serialize_pubkey()
+                assert(pubkey in pubkeys)
+                sorted_eckeys += [(pubkeys.index(pubkey), eckey)]
+            sorted_eckeys.sort(key = lambda x: x[0])
+            eckeys = [k[1] for k in sorted_eckeys]
         prehash = dsha256( self.serialize_preimage() )
         signatures = [ eckey.sign( prehash ) + bytes( [self.hashtype & 0xff] ) for eckey in eckeys ]
         self._input['signatures'] = [sig.hex() for sig in signatures]
@@ -221,6 +203,7 @@ class Transaction:
                                    + push_data_size(sz_pubkey) + sz_pubkey)
             
         elif self._input['address'].kind == Address.ADDR_P2SH:
+            # only multisig for now
             sz_signatures = 1 + self._input['nsigs'] * (1 + 0x48)
             pubkey_prefixes = [int(pk[:2]) for pk in self._input['pubkeys']]
             sz_pubkeys = 0

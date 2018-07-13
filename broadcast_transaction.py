@@ -39,7 +39,7 @@ def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid
     tx.compute_fee()
     
     # Signing
-    tx.sign(eckey)
+    tx.sign([eckey])
     
     # Computation of raw transaction
     tx.serialize()
