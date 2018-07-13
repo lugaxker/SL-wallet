@@ -44,26 +44,25 @@ if __name__ == '__main__':
     locktime = 537937
     
     # Creation of the transaction
-    tx1 = Transaction.minimal_transaction(input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     
-    tx1.sign(eckey1) # signature 
-    tx1.serialize() # computation of raw transaction
-    
+    tx1 = Transaction.minimal_transaction( [eckey1.serialize_pubkey().hex() ], 1, input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     tx1.compute_fee()
-    fee = tx1.get_fee()
-    
     tx1.sign(eckey1) # signature 
     tx1.serialize() # computation of raw transaction
     
+    
+    
+    fee = tx1.get_fee()
     print()
     print("--- TRANSACTION 1 ---")
     print("Input address", input_address)
     print("Output address", output_address)
     print("Amount", prevout_value-fee)
     print("Fee: {:d} sats".format(fee) )
+    print("Size: {:d} bytes".format(len(tx1.raw)))
     
     print("Raw tx", tx1.raw.hex())
-    print("size: {:d} bytes".format(len(tx1.raw)))
+    
     
     
     # Transaction 2: p2sh -> p2pkh
@@ -75,30 +74,23 @@ if __name__ == '__main__':
     prevout_value = 79810
     locktime = 538106
     
-    tx2 = Transaction.minimal_transaction(input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
-    
-    # Signing
-    eckeys = [ EllipticCurveKey.from_wifkey( wifkeys_multisig[2]), EllipticCurveKey.from_wifkey(wifkeys_multisig[0]) ]
-    tx2.sign_multisig(eckeys, pubkeys, nsigs)
-    
-    # Construct transaction
-    tx2.serialize()
+    hexpubkeys = [pk.hex() for pk in pubkeys]
+    tx2 = Transaction.minimal_transaction(hexpubkeys, nsigs, input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     
     tx2.compute_fee()
-    fee = tx2.get_fee()
-    
-    tx2.sign_multisig(eckeys, pubkeys, nsigs)
+    eckeys = [ EllipticCurveKey.from_wifkey( wifkeys_multisig[2]), EllipticCurveKey.from_wifkey(wifkeys_multisig[0]) ]
+    tx2.sign_multisig(eckeys)  
     tx2.serialize()
     
-    
+    fee = tx2.get_fee()
     print()
     print("--- TRANSACTION 2 ---")
     print("Input address", input_address)
     print("Output address (multisig)", output_address)
     print("Amount", prevout_value-fee)
     print("Fee: {:d} sats".format(fee) )
+    print("Size: {:d} bytes".format(len(tx2.raw)))
     print("Raw tx", tx2.raw.hex())
-    print("size: {:d} bytes".format(len(tx2.raw)))
     
     print()
     print("Private keys (WIF)")
@@ -109,5 +101,6 @@ if __name__ == '__main__':
     print("Public keys")
     for pubkey in pubkeys:
         print(" ", pubkey.hex())
+    
     
     

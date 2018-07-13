@@ -33,21 +33,18 @@ def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid
     input_address = Address.from_pubkey( publicKey ).to_string()
     
     # Creation of the transaction
-    tx = Transaction.minimal_transaction(input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
+    tx = Transaction.minimal_transaction([publicKey.hex()], 1, input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     
-    # what we want:
-    #   - one function which estimates the fee to pay
-    #   - one function which builds the actual transaction
-    
-    tx.sign(eckey) # signature 
-    tx.serialize() # computation of raw transaction
-    
+    # Computation of fee
     tx.compute_fee()
+    
+    # Signing
+    tx.sign(eckey)
+    
+    # Computation of raw transaction
+    tx.serialize()
+
     fee = tx.get_fee()
-    
-    tx.sign(eckey) # signature 
-    tx.serialize() # computation of raw transaction
-    
     print("Input address", input_address)
     print("Output address", output_address)
     print("Amount sent (sat)", prevout_value-fee)
@@ -98,6 +95,7 @@ if __name__ == '__main__':
     tx, txid, fee = construct_simple_transaction( wifkey, output_address, locktime, prevout_txid, prevout_index, prevout_value )
     print("RAW TRANSACTION")
     print(tx.hex())
+    print("Size: {:d} bytes".format(len(tx)))
     print()
     print("Transaction identifier", txid.hex())
     print("Transaction fees (sat)", fee)

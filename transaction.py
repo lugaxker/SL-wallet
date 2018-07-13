@@ -8,7 +8,7 @@ from script import *
 SEQUENCE_NUMBER = 0xffffffff - 1
 BCH_SIGHASH_TYPE = 0x41
 
-FEE_RATE = 2 # in satoshis per byte (sat/B)
+FEE_RATE = 1 # in satoshis per byte (sat/B)
 
 def var_int(i):
     '''Returns variable length integer used in the transaction payload.'''
@@ -20,6 +20,31 @@ def var_int(i):
         return bytes([0xfe]) + i.to_bytes(4, 'little')
     elif i <= 0xffffffffffffffff:
         return bytes([0xff]) + i.to_bytes(8, 'little')
+    else:
+        raise ValueError("Integer is too big")
+    
+def push_data_size(n):
+    OP_PUSHDATA1 = 0x4c
+    if n < OP_PUSHDATA1:
+        return 1
+    elif n <= 0xff:
+        return 2
+    elif n <= 0xffff:
+        return 3
+    elif n <= 0xffffffff:
+        return 5
+    else:
+        raise ValueError("Data is too long")
+
+def var_int_size(i):
+    if i < 0xfd:
+        return 1
+    elif i <= 0xffff:
+        return 3
+    elif i <= 0xffffffff:
+        return 5
+    elif i <= 0xffffffffffffffff:
+        return 9
     else:
         raise ValueError("Integer is too big")
 
@@ -39,7 +64,7 @@ class Transaction:
         self.iscomplete = False
         
     @classmethod
-    def minimal_transaction(self, input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime):
+    def minimal_transaction(self, pubkeys, nsigs, input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime):
         ''' Minimal transaction: one-input-one-output transaction. '''
         txin = {}
         txout = {}
@@ -51,6 +76,9 @@ class Transaction:
         txin['txid'] = prevout_txid
         txin['index'] = prevout_index
         txin['value'] = prevout_value
+        
+        txin['pubkeys'] = pubkeys
+        txin['nsigs'] = nsigs
 
         # Output address
         txout['address'] = Address.from_string( output_address )
@@ -146,24 +174,20 @@ class Transaction:
         signature (bytes) : DER-encoded signature of the double sha256 of the
                             preimage, plus signature hashtype
         publicKey (bytes) : serialized public key'''
-        print("PREIMAGE")
-        print( self.serialize_preimage().hex() )
         prehash = dsha256( self.serialize_preimage() )
         signature = eckey.sign( prehash ) + bytes( [self.hashtype & 0xff] )
-        publicKey = eckey.serialize_pubkey()
-        self._input['pubkeys'] = [ publicKey.hex() ]
+        assert self._input['pubkeys'][0] == eckey.serialize_pubkey().hex()
         self._input['signatures'] = [ signature.hex() ]
     
-    def sign_multisig(self, eckeys, pubkeys, nsigs):
+    def sign_multisig(self, eckeys):
         ''' Signs a multisig transaction.
-        eckeys: list of pairs of elliptic curve keys
-        pubkeys: sorted list of public keys involved in the multisig address
-        nsigs: number of signatures required to unlock the multisig address '''
-        assert(len(eckeys) == nsigs)
+        eckeys: list of pairs of elliptic curve keys '''
+        
+        # Number of signatures required
+        assert( len(eckeys) == self._input['nsigs'])
         
         # Public keys
-        self._input['pubkeys'] = [pk.hex() for pk in pubkeys]
-        self._input['nsigs'] = nsigs
+        pubkeys = [bytes.fromhex(pk) for pk in self._input['pubkeys']]
         
         # Sorting of keys
         sorted_eckeys = []
@@ -178,19 +202,55 @@ class Transaction:
         prehash = dsha256( self.serialize_preimage() )
         signatures = [ eckey.sign( prehash ) + bytes( [self.hashtype & 0xff] ) for eckey in eckeys ]
         self._input['signatures'] = [sig.hex() for sig in signatures]
-        
-        
     
     def estimate_size(self):
-        if not self.iscomplete:
-            return None
-        return len(self.raw)
+        sz_version = 4
+        sz_locktime = 4
+        
+        sz_prevout_txid = 32
+        sz_prevout_index = 4
+        if self._input['address'].kind == Address.ADDR_P2PKH:
+            sz_sig = 0x48
+            pubkey_prefix = int( self._input['pubkeys'][0][:2] )
+            assert pubkey_prefix in (0x02, 0x03, 0x04) 
+            if pubkey_prefix in (0x02, 0x03):
+                sz_pubkey = 0x21
+            else:
+                sz_pubkey = 0x41
+            sz_unlocking_script = (push_data_size(sz_sig) + sz_sig 
+                                   + push_data_size(sz_pubkey) + sz_pubkey)
+            
+        elif self._input['address'].kind == Address.ADDR_P2SH:
+            sz_signatures = 1 + self._input['nsigs'] * (1 + 0x48)
+            pubkey_prefixes = [int(pk[:2]) for pk in self._input['pubkeys']]
+            sz_pubkeys = 0
+            for prefix in pubkey_prefixes:
+                assert prefix in (0x02, 0x03, 0x04)
+                if prefix in (0x02, 0x03):
+                    sz_pubkeys += 1 + 0x21
+                else:
+                    sz_pubkeys += 1 + 0x41
+            sz_redeem_script = 1 + sz_pubkeys + 2
+            sz_unlocking_script = (sz_signatures + push_data_size(sz_redeem_script) + sz_redeem_script)
+        sz_length_unlocking_script = var_int_size(sz_unlocking_script)
+        sz_sequence = 4
+        sz_input = sz_prevout_txid + sz_prevout_index + sz_length_unlocking_script + sz_unlocking_script + sz_sequence
+        
+        sz_amount = 8
+        if self._output['address'].kind == Address.ADDR_P2PKH:
+            sz_locking_script = 25
+        elif self._output['address'].kind == Address.ADDR_P2SH:
+            sz_locking_script = 23
+        sz_length_locking_script = var_int_size(sz_locking_script)
+        sz_output = sz_amount + sz_length_locking_script + sz_locking_script
+        
+        return sz_version + 1 + sz_input + 1 + sz_output + sz_locktime
     
     def compute_fee(self):
-        if self.iscomplete:
-            self._input['value']
-            self._output['value'] = self._input['value'] - self.estimate_size() * FEE_RATE
-            self.iscomplete = False
+        self._input['value']
+        estimated_size = self.estimate_size()
+        self._output['value'] = self._input['value'] - estimated_size * FEE_RATE
+        self.iscomplete = False
             
     def input_value(self):
         return self._input['value']
