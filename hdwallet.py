@@ -4,6 +4,8 @@
 from crypto import (EllipticCurveKey, seed_from_mnemonic, root_from_seed, decode_xkey, private_derivation, public_derivation)
 from mnemonic import generate_mnemonic
 
+
+
 if __name__ == '__main__':
     
     import sys
@@ -82,12 +84,11 @@ if __name__ == '__main__':
     K_dash, _, _, _, _ = decode_xkey(xpub_dash)
     
     from base58 import Base58
-    payload = bytes([0xcc]) + k_dash + bytes([0x01])
+    from constants import dsh_mainnet
+    payload = bytes([dsh_mainnet.WIF_PREFIX]) + k_dash + bytes([0x01])
     wifkey_dash = Base58.encode_check( payload )
     print(" private key {}".format(sequence), wifkey_dash)
     print(" public key {}".format(sequence), K_dash.hex())
     from crypto import hash160
     dash_address = Base58.encode_check( bytes([0x4c]) + hash160(K_dash) )
     print(" dash address {}".format(sequence), dash_address)
-    
-    

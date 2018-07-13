@@ -5,7 +5,10 @@ import ecdsa
 import hashlib
 import hmac
 import pbkdf2
+
 from base58 import *
+
+from constants import *
 
 # Hash functions
 
@@ -31,8 +34,6 @@ def hmac_sha512(x, y):
     return hmac.new(x, y, hashlib.sha512).digest()
 
 # Keys
-
-WIF_PREFIX = 0x80
 
 def ecc_getyfromx(x, curve = ecdsa.ecdsa.curve_secp256k1, odd=True):
     _p = curve.p()
@@ -90,16 +91,16 @@ class EllipticCurveKey:
     
     @classmethod
     def from_wifkey(self, wifkey ):
-        vch = Base58.decode_check( wifkey )
-        assert len(vch) in (33,34)
-        if vch[0] != WIF_PREFIX:
+        payload = Base58.decode_check( wifkey )
+        assert len(payload) in (33,34)
+        if payload[0] != bch_mainnet.WIF_PREFIX:
             raise BaseError('wrong version byte for WIF private key')
-        k = vch[1:33]
-        compressed = (len(vch) == 34)
+        k = payload[1:33]
+        compressed = (len(payload) == 34)
         return self( k, compressed )
     
     def to_wifkey(self):
-        payload = bytes([WIF_PREFIX]) + self.secret.to_bytes(32, 'big')
+        payload = bytes([bch_mainnet.WIF_PREFIX]) + self.secret.to_bytes(32, 'big')
         if self.compressed:
             payload += bytes([0x01])
         return Base58.encode_check( payload )
@@ -118,10 +119,6 @@ class EllipticCurveKey:
 
 class KeyDerivationError(Exception):
     '''Exception used for key derivation errors.'''
-    
-XPRV_HEADER = 0x0488ade4
-XPUB_HEADER = 0x0488b21e
-HARDENED = 0x80000000
 
 def seed_from_mnemonic( mnemonic, passphrase = "" ):
     ''' Compute BIP-39 seed from BIP-39 mnemonic phrase. Passphrase is optional. '''
@@ -173,7 +170,7 @@ def xpub_from_xprv( xprv ):
 def CKD_prv(kpar, cpar, index):
     ''' Child key derivation from a private key (BIP-32). '''
     assert len(kpar) == 32
-    hardened = (index >= HARDENED)
+    hardened = (index >= BIP32_HARDENED)
     if hardened:
         key_and_index = bytes([0]) + kpar + index.to_bytes(4,'big')
     else:
@@ -188,7 +185,7 @@ def CKD_prv(kpar, cpar, index):
 def CKD_pub(Kpar, cpar, index):
     ''' Child key derivation from a compressed public key (BIP-32). '''
     assert len(Kpar) == 33
-    if index >= HARDENED:
+    if index >= BIP32_HARDENED:
         raise KeyDerivationError("Derivation from a public key cannot be hardened")
     key_and_index = Kpar + index.to_bytes(4,'big')
     I = hmac_sha512(cpar, key_and_index)
@@ -212,7 +209,7 @@ def private_derivation(xprv, branch, sequence):
     k, c, depth, _ , _ = decode_xkey( xprv )
     for n in sequence.split("/"):
         if n == "": continue
-        index = int(n[:-1]) + HARDENED if n[-1] == "'" else int(n)
+        index = int(n[:-1]) + BIP32_HARDENED if n[-1] == "'" else int(n)
         kpar = k
         cpar = c
         k, c = CKD_prv(kpar, cpar, index)

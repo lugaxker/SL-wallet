@@ -4,6 +4,8 @@
 from base58 import *
 from crypto import hash160  
 
+from constants import bch_mainnet
+
 class AddressError(Exception):
     '''Exception used for Address errors.'''
 
@@ -237,9 +239,9 @@ class Address:
         '''Initialize from a legacy address string.'''
         vpayload = Base58.decode_check( string )
         verbyte, addr_hash = vpayload[0], vpayload[1:]
-        if verbyte == 0:
+        if verbyte == bch_mainnet.P2PKH_VERBYTE:
             kind = self.ADDR_P2PKH
-        elif verbyte == 5:
+        elif verbyte == bch_mainnet.P2SH_VERBYTE:
             kind = self.ADDR_P2SH
         else:
             raise AddressError("unknown version byte: {}".format(verbyte))
@@ -284,9 +286,9 @@ class Address:
     
     def to_legacy(self):
         if self.kind == self.ADDR_P2PKH:
-            verbyte = 0
+            verbyte = bch_mainnet.P2PKH_VERBYTE
         else:
-            verbyte = 5
+            verbyte = bch_mainnet.P2SH_VERBYTE
         return Base58.encode_check(bytes([verbyte]) + self.hash_addr)
     
     def to_string(self):
