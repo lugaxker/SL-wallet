@@ -5,26 +5,27 @@ Project of a multicurrency lightweight wallet.
 
 ## Prerequisites
 
-Python 3.5 or higher. Packages : `ecdsa`, `hashlib`, `socket`.
+Python 3.5 or higher. Packages : `ecdsa`, `hashlib`, `hmac`, `pbkdf2`, `socket`.
 
 ## Tasks
 
 ### Done
 
-`broadcast_transaction.py` Broadcast a transaction on Bitcoin Cash network.
+Create and broadcast a transaction on Bitcoin Cash network. `broadcast_transaction.py`
 
-`multisig.py` Creation and use of a multisig address
+Create and use of a multisig address. `multisig.py`
+
+Extended keys and child key derivation. `crypto.py`
+
+Estimate size of transaction in order to compute transaction fees. `transaction.py`
 
 ### In progress
 
-`transaction.py` Estimate size of transaction in order to compute transaction fees
+Some SegWit stuff (BTC). `segwit.py`
 
-`segwit.py` Some SegWit stuff
-
-`hdwallet.py` Extended keys and child key derivation (functions will have to move to `crypto.py`)
 
 ### To do
 
-`wallet.py` (yet to create) Hierarchical Deterministic wallet (BIP-39, BIP-32, BIP-44): deterministic generation of keys and addresses from a 12-words seed phrase.
+Store keys and other information (addresses, transactions). `wallet.py` (yet to create)
 
-`blockchain.py` (yet to create) Manage blockchain headers.
+Manage blockchain headers. `blockchain.py` (yet to create) 
