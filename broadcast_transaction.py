@@ -33,7 +33,7 @@ def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid
     input_address = Address.from_pubkey( publicKey ).to_string()
     
     # Creation of the transaction
-    tx = Transaction.minimal_transaction([publicKey.hex()], 1, input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
+    tx = Transaction.minimal_transaction([publicKey.hex()], 1, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     
     # Computation of fee
     tx.compute_fee()

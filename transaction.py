@@ -64,13 +64,17 @@ class Transaction:
         self.iscomplete = False
         
     @classmethod
-    def minimal_transaction(self, pubkeys, nsigs, input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime):
+    def minimal_transaction(self, pubkeys, nsigs, output_address, prevout_txid, prevout_index, prevout_value, locktime):
         ''' Minimal transaction: one-input-one-output transaction. '''
         txin = {}
         txout = {}
 
         # Input address
-        txin['address'] = Address.from_string( input_address )
+        if nsigs == 1:
+            txin['address'] = Address.from_pubkey( bytes.fromhex( pubkeys[0] ) )
+        else:
+            redeem_script = multisig_locking_script( [bytes.fromhex(pk) for pk in pubkeys], nsigs)
+            txin['address'] = Address.from_script( redeem_script )
         txin['sequence'] = SEQUENCE_NUMBER
         
         txin['txid'] = prevout_txid

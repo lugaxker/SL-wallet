@@ -45,7 +45,7 @@ if __name__ == '__main__':
     
     # Creation of the transaction
     
-    tx1 = Transaction.minimal_transaction( [eckey1.serialize_pubkey().hex() ], 1, input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
+    tx1 = Transaction.minimal_transaction( [eckey1.serialize_pubkey().hex() ], 1, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     tx1.compute_fee()
     tx1.sign([eckey1]) # signature 
     tx1.serialize() # computation of raw transaction
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     locktime = 538106
     
     hexpubkeys = [pk.hex() for pk in pubkeys]
-    tx2 = Transaction.minimal_transaction(hexpubkeys, nsigs, input_address, output_address, prevout_txid, prevout_index, prevout_value, locktime)
+    tx2 = Transaction.minimal_transaction(hexpubkeys, nsigs, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     
     tx2.compute_fee()
     eckeys = [ EllipticCurveKey.from_wifkey( wifkeys_multisig[2]), EllipticCurveKey.from_wifkey(wifkeys_multisig[0]) ]
