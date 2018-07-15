@@ -233,7 +233,6 @@ class Transaction:
         self._input['value']
         estimated_size = self.estimate_size()
         self._output['value'] = self._input['value'] - estimated_size * FEE_RATE
-        self.iscomplete = False
             
     def input_value(self):
         return self._input['value']
@@ -243,3 +242,7 @@ class Transaction:
 
     def get_fee(self):
         return self.input_value() - self.output_value()
+    
+    def __str__(self):
+        dtx = {'version': self.version, 'inputs': [self._input], 'outputs': [self._output], 'locktime': self.locktime, 'raw': self.raw.hex(), 'size': len(self.raw), 'fee': self.get_fee(), 'txid': self.txid().hex()}
+        return dict.__str__(dtx)
