@@ -22,6 +22,7 @@ if __name__ == '__main__':
     print("Random mnemonic phrase ({} words): {}".format((nbits + nbits//32) // 11, random_mnemonic))
     
     mnemonic = "hundred garage genius weekend echo explain deal swamp kitchen crunch rigid lyrics"
+    mnemonic = "repeat chaos salon trash omit index indoor nephew catch blood come weather"
     print("Mnemonic phrase:", mnemonic)
     
     seed = seed_from_mnemonic(mnemonic, "")
@@ -55,13 +56,24 @@ if __name__ == '__main__':
     print(" public key M/0'", K_0.hex())
     
     print()
+    print("BIP-44 first BTC account")
+    branch = "m"
+    sequence = "m/44'/0'/0'"
+    xprv_account, xpub_account = private_derivation(mxprv, branch, sequence)
+    print(" xprv {}".format(sequence), xprv_account )
+    print(" xpub {}".format("M" + sequence[1:]), xpub_account )
+    k_account, _, _, _, _ = decode_xkey(xprv_account)
+    K_account, _, _, _, _ = decode_xkey(xpub_account)
+    print(" private key {}".format(sequence), EllipticCurveKey( k_account, True ).to_wifkey() )
+    print(" public key {}".format(sequence), K_account.hex())
+    
+    print()
     print("BIP-44 first external address of the first BTC account")
     branch = "m"
     sequence = "m/44'/0'/0'/0/0"
-    print("({})".format(sequence))
     xprv_bip_144, xpub_bip_144 = private_derivation(mxprv, branch, sequence)
-    print(" xprv m/0", xprv_bip_144 )
-    print(" xpub M/0", xpub_bip_144 )
+    print(" xprv {}".format(sequence), xprv_bip_144 )
+    print(" xpub {}".format("M" + sequence[1:]), xpub_bip_144 )
     k_bip_144, _, _, _, _ = decode_xkey(xprv_bip_144)
     K_bip_144, _, _, _, _ = decode_xkey(xpub_bip_144)
     print(" private key {}".format(sequence), EllipticCurveKey( k_bip_144, True ).to_wifkey() )
