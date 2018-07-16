@@ -109,6 +109,8 @@ class Transaction:
                 txin['index'].to_bytes(4,'little') )
     
     def serialize_input(self):
+        ''' Serializes an input: outpoint (previous output tx id + previous output index)
+        + unlocking script (scriptSig) with its size + sequence number. '''
         txin = self._input
         outpoint  = self.serialize_outpoint()
         pubkeys = [bytes.fromhex(pk) for pk in txin['pubkeys']]
@@ -119,6 +121,7 @@ class Transaction:
         return outpoint + unlockingScriptSize + unlockingScript + nSequence
     
     def serialize_output(self):
+        ''' Serializes an output: value + locking script (scriptPubkey) with its size.'''
         txout = self._output
         nAmount = txout['value'].to_bytes(8,'little')
         lockingScript = locking_script( txout['address'] )
@@ -248,5 +251,12 @@ class Transaction:
         return self.input_value() - self.output_value()
     
     def __str__(self):
+        if not self.iscomplete:
+            return None
         dtx = {'version': self.version, 'inputs': [self._input], 'outputs': [self._output], 'locktime': self.locktime, 'raw': self.raw.hex(), 'size': len(self.raw), 'fee': self.get_fee(), 'txid': self.txid().hex()}
         return dict.__str__(dtx)
+    
+    def __repr__(self):
+        if not self.iscomplete:
+            return None 
+        return "<Transaction {}>".format(self.txid())
