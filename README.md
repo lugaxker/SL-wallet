@@ -29,3 +29,7 @@ Some SegWit stuff (BTC). `segwit.py`
 Store keys and other information (addresses, transactions). `wallet.py` (yet to create)
 
 Manage blockchain headers. `blockchain.py` (yet to create) 
+
+## Coin support
+
+Bitcoin Cash (BCH), Bitcoin (BTC), Ethereum (ETH), Dash (DSH)
