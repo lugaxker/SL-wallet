@@ -68,6 +68,12 @@ def ser_to_point(s):
         y = ecc_getyfromx(x, curve, prefix == 0x03)
     return ecdsa.ellipticcurve.Point( curve, x, y, generator.order() )
 
+def uncompress_key( pubkey ):
+    assert isinstance( pubkey, (bytes, bytearray) )
+    assert len(pubkey) == 33
+    K = ser_to_point(pubkey)
+    return point_to_ser( K, compressed=False)
+
 class ModifiedSigningKey(ecdsa.SigningKey):
     '''Enforce low S values in signatures (BIP-62).'''
 
