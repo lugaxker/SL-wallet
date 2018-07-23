@@ -32,6 +32,7 @@ class btc_testnet:
 class dsh_mainnet:
     '''Dash main network constants.'''
     WIF_PREFIX = 0xcc
+    P2PKH_VERBYTE = 0x4c
     
     BIP44_TYPE = 0x05
     
