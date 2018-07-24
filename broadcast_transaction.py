@@ -3,7 +3,7 @@
 
 import socket
 
-from crypto import (dsha256, EllipticCurveKey)
+from crypto import (dsha256, PrivateKey, PublicKey)
 from address import *
 from script import *
 from transaction import Transaction
@@ -25,11 +25,11 @@ def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid
     prevout_index (int) : index of the output in the previous transaction
     prevout_value (int) : previous output value in satoshis'''
     
-    # Creation of elliptic curve keys (private key + public key)
-    eckey = EllipticCurveKey.from_wifkey( wifkey )
+    # Private key
+    prvkey = PrivateKey.from_wif( wifkey )
     
     # Public key and address (Public Key Hash)
-    publicKey = eckey.serialize_pubkey() 
+    publicKey = PublicKey.from_prvkey( prvkey ).to_ser()
     input_address = Address.from_pubkey( publicKey ).to_string()
     
     # Creation of the transaction
@@ -39,7 +39,7 @@ def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid
     tx.compute_fee()
     
     # Signing
-    tx.sign([eckey])
+    tx.sign([prvkey])
     
     # Computation of raw transaction
     tx.serialize()

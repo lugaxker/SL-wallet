@@ -70,10 +70,10 @@ def get_adresses_from_account( account_xpub, coin, addr_index, change ):
         sequence = "/{:d}/{:d}".format(branch_number, i)
         xpub = public_derivation( account_xpub, "", sequence )
         cpubkey, _, _, _, _ = decode_xkey( xpub )
-        
+
         if coin == "bch":
             pubkeys.append( cpubkey.hex() )
-            addresses.append( Address.from_pubkey(cpubkey).to_cash() )
+            addresses.append( Address.from_pubkey( cpubkey ).to_cash() )
         elif coin == "btc":
             pubkeys.append( cpubkey.hex() )
             addresses.append( Base58.encode_check( bytes([BTC_P2PKH_VERBYTE]) + hash160(cpubkey) ) )
@@ -81,9 +81,10 @@ def get_adresses_from_account( account_xpub, coin, addr_index, change ):
             pubkeys.append( cpubkey.hex() )
             addresses.append( Base58.encode_check( bytes([DSH_P2PKH_VERBYTE]) + hash160(cpubkey) ) )
         elif coin == "eth":
-            pubkey = uncompress_key( cpubkey )
-            pubkeys.append( uncompress_key( cpubkey ).hex() )
-            addresses.append( eth_pubkey_to_addr( pubkey ) )
+            pubkey = PublicKey.from_ser( cpubkey )
+            pubkey.uncompress()
+            pubkeys.append( pubkey.to_ser(strtype=True) )
+            addresses.append( eth_pubkey_to_addr( pubkey.to_ser() ) )
         else:
             raise ValueError("wrong type of coin: {}", coin)
     return addresses, pubkeys
@@ -141,6 +142,16 @@ if __name__ == '__main__':
             print(" ", i, addresses[i], pubkeys[i], prvkeys[i] )
     
     print()
+    print("Private and public keys")
+    
+    wifkey = "KxJGuUFJqtxvRSvYG74jHCr5ev6VBjtfiotFQay1e2rfzu5Vk8FN"
+    k = PrivateKey.from_wif(wifkey)
+    print( "wifkey", wifkey )
+    signature = k.sign( sha256( "olala".encode("utf-8") ) )
+    print(signature.hex())
+    K = PublicKey.from_prvkey( wifkey )
+    print("ser K", K.to_ser( strtype=True ) )
+    print("address", Address.from_pubkey(K.to_ser()).to_cash() )
     
     
     

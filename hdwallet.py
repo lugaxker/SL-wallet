@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from crypto import (EllipticCurveKey, seed_from_mnemonic, root_from_seed, decode_xkey, private_derivation, public_derivation)
+from crypto import (PrivateKey, seed_from_mnemonic, root_from_seed, decode_xkey, private_derivation, public_derivation)
 from mnemonic import generate_mnemonic
 
 
@@ -42,7 +42,7 @@ if __name__ == '__main__':
     print(" xpub M/0", xpub_0 )
     k_0, _, _, _, _ = decode_xkey(xprv_0)
     K_0, _, _, _, _ = decode_xkey(xpub_0)
-    print(" private key m/0", EllipticCurveKey( k_0, True ).to_wifkey() )
+    print(" private key m/0", PrivateKey.from_hex( k_0 ).to_wif() )
     print(" public key M/0", K_0.hex())
     
     print()
@@ -52,7 +52,7 @@ if __name__ == '__main__':
     print(" xpub M/0'", xpub_0 )
     k_0, _, _, _, _ = decode_xkey(xprv_0)
     K_0, _, _, _, _ = decode_xkey(xpub_0)
-    print(" private key m/0'", EllipticCurveKey( k_0, True ).to_wifkey() )
+    print(" private key m/0'", PrivateKey.from_hex( k_0 ).to_wif() )
     print(" public key M/0'", K_0.hex())
     
     print()
@@ -64,7 +64,7 @@ if __name__ == '__main__':
     print(" xpub {}".format("M" + sequence[1:]), xpub_account )
     k_account, _, _, _, _ = decode_xkey(xprv_account)
     K_account, _, _, _, _ = decode_xkey(xpub_account)
-    print(" private key {}".format(sequence), EllipticCurveKey( k_account, True ).to_wifkey() )
+    print(" private key {}".format(sequence), PrivateKey.from_hex( k_account ).to_wif() )
     print(" public key {}".format(sequence), K_account.hex())
     
     print()
@@ -76,7 +76,7 @@ if __name__ == '__main__':
     print(" xpub {}".format("M" + sequence[1:]), xpub_bip_144 )
     k_bip_144, _, _, _, _ = decode_xkey(xprv_bip_144)
     K_bip_144, _, _, _, _ = decode_xkey(xpub_bip_144)
-    print(" private key {}".format(sequence), EllipticCurveKey( k_bip_144, True ).to_wifkey() )
+    print(" private key {}".format(sequence), PrivateKey.from_hex( k_bip_144 ).to_wif() )
     print(" public key {}".format(sequence), K_bip_144.hex())
 
     print()

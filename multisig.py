@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from crypto import EllipticCurveKey
+from crypto import (PrivateKey, PublicKey)
 from address import Address
 from script import *
 from transaction import Transaction
@@ -25,7 +25,7 @@ if __name__ == '__main__':
                #"5JjHVMwJdjPEPQhq34WMUhzLcEd4SD7HgZktEh8WHstWcCLRceV"]
     
     # Sorted public keys involved in the multisig address
-    pubkeys = [ EllipticCurveKey.from_wifkey( wk ).serialize_pubkey() for wk in wifkeys_multisig ]
+    pubkeys = [ PublicKey.from_prvkey( wk ).to_ser() for wk in wifkeys_multisig]
     
     # Number of signatures required to unlock the multisig address
     nsigs = 2
@@ -34,8 +34,9 @@ if __name__ == '__main__':
     p2sh_addr = Address.from_script( redeem_script )
     
     # Transaction 1: p2pkh -> p2sh
-    eckey1 = EllipticCurveKey.from_wifkey( wifkey1 )
-    input_address = Address.from_pubkey( eckey1.serialize_pubkey() ).to_string() 
+    prvkey1 = PrivateKey.from_wif( wifkey1 )
+    pubkey1 = PublicKey.from_prvkey( prvkey1 )
+    input_address = Address.from_pubkey( pubkey1.to_ser() ).to_string() 
     output_address = p2sh_addr.to_cash()
     
     prevout_txid = "10e7ee10ecab3d16fcba5160792733dc2eeeb7270389d304832da3c9f5d31ef5"
@@ -45,9 +46,9 @@ if __name__ == '__main__':
     
     # Creation of the transaction
     
-    tx1 = Transaction.minimal_transaction( [eckey1.serialize_pubkey().hex() ], 1, output_address, prevout_txid, prevout_index, prevout_value, locktime)
+    tx1 = Transaction.minimal_transaction( [ pubkey1.to_ser(strtype=True) ], 1, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     tx1.compute_fee()
-    tx1.sign([eckey1]) # signature 
+    tx1.sign([prvkey1]) # signature 
     tx1.serialize() # computation of raw transaction
     
     
@@ -74,12 +75,11 @@ if __name__ == '__main__':
     prevout_value = 79810
     locktime = 538106
     
-    hexpubkeys = [pk.hex() for pk in pubkeys]
-    tx2 = Transaction.minimal_transaction(hexpubkeys, nsigs, output_address, prevout_txid, prevout_index, prevout_value, locktime)
+    tx2 = Transaction.minimal_transaction([pk.hex() for pk in pubkeys], nsigs, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     
     tx2.compute_fee()
-    eckeys = [ EllipticCurveKey.from_wifkey( wifkeys_multisig[2]), EllipticCurveKey.from_wifkey(wifkeys_multisig[0]) ]
-    tx2.sign(eckeys)  
+    prvkeys = [ PrivateKey.from_wif( wifkeys_multisig[2] ), PrivateKey.from_wif( wifkeys_multisig[0] ) ]
+    tx2.sign(prvkeys)  
     tx2.serialize()
     
     fee = tx2.get_fee()

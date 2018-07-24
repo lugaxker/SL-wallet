@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from crypto import (dsha256, EllipticCurveKey)
+from crypto import (dsha256, PrivateKey, PublicKey)
 from address import *
 from script import *
 
@@ -174,23 +174,23 @@ class Transaction:
         if not self.iscomplete:
             return None
         return dsha256( self.raw )[::-1]
-    
-    def sign(self, eckeys):
+        
+    def sign(self, prvkeys):
         '''Signs the transaction. 
-        eckeys (EllipticCurveKey list) : list of pairs of elliptic curve keys'''
-        assert( len(eckeys) == self._input['nsigs']) # Number of signatures required
+        prvkeys (PrivateKey list)'''
+        assert( len(prvkeys) == self._input['nsigs']) # Number of signatures required
         pubkeys = [bytes.fromhex(pk) for pk in self._input['pubkeys']] # Public keys
-        if len(eckeys) > 1: # Sorting of keys
-            sorted_eckeys = []
-            for eckey in eckeys:
-                pubkey = eckey.serialize_pubkey()
+        if len(prvkeys) > 1: # Sorting of keys
+            sorted_prvkeys = []
+            for prvkey in prvkeys:
+                pubkey = PublicKey.from_prvkey( prvkey ).to_ser()
                 assert(pubkey in pubkeys)
-                sorted_eckeys += [(pubkeys.index(pubkey), eckey)]
-            sorted_eckeys.sort(key = lambda x: x[0])
-            eckeys = [k[1] for k in sorted_eckeys]
+                sorted_prvkeys += [(pubkeys.index(pubkey), prvkey)]
+            sorted_prvkeys.sort(key = lambda x: x[0])
+            prvkeys = [k[1] for k in sorted_prvkeys]
         prehash = dsha256( self.serialize_preimage() )
-        signatures = [ eckey.sign( prehash ) + bytes( [self.hashtype & 0xff] ) for eckey in eckeys ]
-        self._input['signatures'] = [sig.hex() for sig in signatures]
+        hashtype = bytes( [self.hashtype & 0xff] ).hex()
+        self._input['signatures'] = [ prvkey.sign( prehash, strtype=True ) + hashtype for prvkey in prvkeys ]
     
     def estimate_size(self):
         sz_version = 4

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from crypto import (sha256, hash160, EllipticCurveKey)
+from crypto import (sha256, hash160, PrivateKey, PublicKey)
 from base58 import Base58
 from address import Address
 from script import push_data, multisig_locking_script
@@ -117,15 +117,13 @@ if __name__ == '__main__':
     import sys
     if sys.version_info < (3, 5):
         sys.exit("Error: Must be using Python 3.5 or higher")
-        
+    
+    # Private key
     wifkey = "KzwQjFQPytv5x6w2cLdF4BSweGVCPEt8b8HbcuTi8e75LRQfw94L"
     
-    # Creation of elliptic curve keys (private key + public key)
-    eckey = EllipticCurveKey.from_wifkey( wifkey )
-    
     # Public key and address (Public Key Hash)
-    publicKey = eckey.serialize_pubkey()
-    addr = Address.from_pubkey( publicKey )
+    pubkey = PublicKey.from_prvkey( wifkey ).to_ser()
+    addr = Address.from_pubkey( pubkey )
     print( "Private Key (WIF)", wifkey )
     print( "Legacy Address (P2PKH)", addr.to_legacy() )
     
@@ -145,7 +143,7 @@ if __name__ == '__main__':
     wifkeys_multisig = ["KzwQjFQPytv5x6w2cLdF4BSweGVCPEt8b8HbcuTi8e75LRQfw94L",
                         "Ky4yk7uTBZ1EDbqyVfkvoZXURpWdRCxTpCERZb4gkn67fY8kK95R",
                         "Kz3Htg8mSfC997qkBxpVCdxYhEoRcFj5ikUjE96ipVAJPou7MwRD"]
-    pubkeys = [ EllipticCurveKey.from_wifkey( wk ).serialize_pubkey() for wk in wifkeys_multisig ]
+    pubkeys =  [PublicKey.from_prvkey( wk ).to_ser() for wk in wifkeys_multisig ]
     print()
     print("--- 2-of-3 multisig address ---")
     print("Private keys")

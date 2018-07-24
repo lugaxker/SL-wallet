@@ -33,46 +33,8 @@ def hash160(x):
 def hmac_sha512(x, y):
     return hmac.new(x, y, hashlib.sha512).digest()
 
+
 # Keys
-
-def ecc_getyfromx(x, curve = ecdsa.ecdsa.curve_secp256k1, odd=True):
-    _p = curve.p()
-    _a = curve.a()
-    _b = curve.b()
-    y2 = ( pow(x, 3, _p) + _a * pow(x, 2, _p) + _b ) % _p # y2 = x3 + 7 mod p
-    y = pow(y2, (_p+1)//4, _p)
-    if y == 0 or (not curve.contains_point(x,y)):
-        raise ValueError("no y value for {:d}".format(x))
-    
-    if bool(y % 2) == odd:
-        return y
-    else:
-        return (_p - y)
-
-def point_to_ser(P, compressed):
-    if compressed:
-        return bytes.fromhex( "{:02x}{:064x}".format( 2+(P.y()&1), P.x() ) )
-    return bytes.fromhex( "04{:064x}{:064x}".format(P.x(), P.y()) )
-    
-def ser_to_point(s):
-    curve = ecdsa.ecdsa.curve_secp256k1
-    generator = ecdsa.ecdsa.generator_secp256k1
-    
-    prefix = s[0]
-    payload = s[1:]
-    x = int.from_bytes( s[1:33] ,'big')
-    assert prefix in [0x02, 0x03, 0x04]
-    if prefix == 0x04:
-        y = int.from_bytes( s[33:] ,'big')
-    else:
-        y = ecc_getyfromx(x, curve, prefix == 0x03)
-    return ecdsa.ellipticcurve.Point( curve, x, y, generator.order() )
-
-def uncompress_key( pubkey ):
-    assert isinstance( pubkey, (bytes, bytearray) )
-    assert len(pubkey) == 33
-    K = ser_to_point(pubkey)
-    return point_to_ser( K, compressed=False)
 
 class ModifiedSigningKey(ecdsa.SigningKey):
     '''Enforce low S values in signatures (BIP-62).'''
@@ -86,40 +48,128 @@ class ModifiedSigningKey(ecdsa.SigningKey):
             s = order - s
         return r, s
 
-class EllipticCurveKey:
+class PrivateKey:
     
-    def __init__( self, k, compressed=True ):
-        secret = ecdsa.util.string_to_number(k)
-        self.pubkey = ecdsa.ecdsa.Public_key( ecdsa.ecdsa.generator_secp256k1, ecdsa.ecdsa.generator_secp256k1 * secret )
-        self.privkey = ecdsa.ecdsa.Private_key( self.pubkey, secret )
+    def __init__(self, secret, compressed=True):
         self.secret = secret
         self.compressed = compressed
     
     @classmethod
-    def from_wifkey(self, wifkey ):
+    def from_hex(self, k, compressed=True ):
+        ''' Builds Private Key from 32-byte hex string. '''
+        assert isinstance( k, (bytes, str))
+        if isinstance( k, str ):
+            k = bytes.fromhex( k )
+        secret = int.from_bytes( k, 'big' )
+        return self(secret, compressed)
+        
+    @classmethod
+    def from_wif(self, wifkey):
+        assert isinstance( wifkey, str )
         payload = Base58.decode_check( wifkey )
         assert len(payload) in (33,34)
         if payload[0] != bch_mainnet.WIF_PREFIX:
             raise BaseError('wrong version byte for WIF private key')
-        k = payload[1:33]
+        secret = int.from_bytes( payload[1:33], 'big' )
         compressed = (len(payload) == 34)
-        return self( k, compressed )
+        return self( secret, compressed )
     
-    def to_wifkey(self):
+    def to_wif(self):
         payload = bytes([bch_mainnet.WIF_PREFIX]) + self.secret.to_bytes(32, 'big')
         if self.compressed:
             payload += bytes([0x01])
         return Base58.encode_check( payload )
-            
-    def sign(self, msg_hash):
+    
+    def sign(self, msg_hash, strtype=False):
         private_key = ModifiedSigningKey.from_secret_exponent(self.secret, curve = ecdsa.SECP256k1)
         public_key = private_key.get_verifying_key()
         signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
         assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_der)        
-        return signature
+        return ( signature.hex() if strtype else signature )
     
-    def serialize_pubkey(self):
-        return point_to_ser(self.pubkey.point, self.compressed)
+class PublicKey:
+    
+    def __init__(self, prefix, x, y=None):
+        self.x = x
+        self.y = y
+        self.prefix = prefix        
+    
+    @classmethod
+    def from_prvkey(self, key, compressed=True):
+        if isinstance(key, str):
+            prvkey = PrivateKey.from_hex(key, compressed) if len(key) == 64 else PrivateKey.from_wif( key )
+        elif isinstance(key, bytes):
+            prvkey = PrivateKey.from_hex(key, compressed)
+        elif isinstance(key, int):
+            prvkey = PrivateKey(key, compressed)
+        elif isinstance(key, PrivateKey):
+            prvkey = key
+        else:
+            raise TypeError("Wrong type {0!r}".format(key))
+        ec_point = ecdsa.ecdsa.Public_key( ecdsa.ecdsa.generator_secp256k1, ecdsa.ecdsa.generator_secp256k1 * prvkey.secret ).point
+        if prvkey.compressed:
+            return self( 0x02 + (ec_point.y() & 1), ec_point.x(), None )
+        else:
+            return self( 0x04, ec_point.x(), ec_point.y() )
+    
+    @classmethod
+    def from_ser(self, serkey):
+        ''' From serialized public key. '''
+        assert isinstance( serkey, (bytes, str) )
+        if isinstance( serkey, str ):
+            serkey = bytes.fromhex( serkey )
+        assert len(serkey) in (33, 65)
+        prefix = serkey[0]
+        assert prefix in (0x02, 0x03, 0x04)
+        x = int.from_bytes( serkey[1:33], 'big' )
+        y = int.from_bytes( serkey[34:], 'big' ) if prefix == 0x04 else None
+        return self( prefix, x, y )
+        
+    @classmethod
+    def from_ec_point(self, P, compressed=True):
+        if compressed:
+            return self( 0x02 + (P.y() & 1), P.x(), None)
+        else:
+            return self( 0x04, P.x(), P.y() )
+    
+    @staticmethod
+    def _getyfromx(x, curve = ecdsa.ecdsa.curve_secp256k1, odd=True):
+        _p = curve.p()
+        _a = curve.a()
+        _b = curve.b()
+        y2 = ( pow(x, 3, _p) + _a * pow(x, 2, _p) + _b ) % _p # y2 = x3 + 7 mod p
+        y = pow(y2, (_p+1)//4, _p)
+        if y == 0 or (not curve.contains_point(x,y)):
+            raise ValueError("no y value for {:d}".format(x))
+        if bool(y % 2) == odd:
+            return y
+        else:
+            return (_p - y)
+    
+    def to_ser(self, strtype=False):
+        if self.prefix == 0x04:
+            s = "04{:064x}{:064x}".format(self.x, self.y)
+        else:
+            s = "{:02x}{:064x}".format( self.prefix, self.x )
+        return ( s if strtype else bytes.fromhex(s) )
+        
+    def to_ec_point(self):
+        curve = ecdsa.ecdsa.curve_secp256k1
+        generator = ecdsa.ecdsa.generator_secp256k1
+        x = self.x
+        y = self.y if self.prefix == 0x04 else self._getyfromx(x, curve, self.prefix == 0x03)
+        return ecdsa.ellipticcurve.Point( curve, x, y, generator.order() )
+    
+    def compress(self):
+        if self.prefix == 0x04:
+            self.prefix = 0x02 + (self.y & 1)
+            self.y = None
+    
+    def uncompress(self):
+        if self.prefix in (0x02, 0x03): 
+            self.y = self._getyfromx(self.x, ecdsa.ecdsa.curve_secp256k1, self.prefix == 0x03)
+            self.prefix = 0x04
+
     
 # Key Derivation
 
@@ -129,18 +179,6 @@ class KeyDerivationError(Exception):
 def seed_from_mnemonic( mnemonic, passphrase = "" ):
     ''' Compute BIP-39 seed from BIP-39 mnemonic phrase. Passphrase is optional. '''
     return pbkdf2.PBKDF2(mnemonic, "mnemonic" + passphrase, iterations = 2048, macmodule = hmac, digestmodule = hashlib.sha512).read(64)
-
-def root_from_seed( seed ):
-    ''' Compute BIP-32 root (master extended keys) from seed. '''
-    I = hmac_sha512(b"Bitcoin seed", seed)
-    master_private_key = I[0:32]
-    if not ( 0 < int.from_bytes(master_private_key,'big') < ecdsa.ecdsa.generator_secp256k1.order() ):
-        raise KeyDerivationError("wrong seed: master private key must be lower than ec generator order")
-    master_chain_code = I[32:]
-    master_public_key = EllipticCurveKey( master_private_key, compressed=True ).serialize_pubkey()
-    xprv = encode_xkey( master_private_key, master_chain_code )
-    xpub = encode_xkey( master_public_key, master_chain_code )
-    return xprv, xpub
 
 def encode_xkey(key, chain_code, depth = 0, fingerprint=b'\x00'*4, child_number=b'\x00'*4):
     assert len(key) in (32,33)
@@ -168,19 +206,30 @@ def decode_xkey( xkey ):
         raise KeyDerivationError('Invalid extended key format')
     return key, chain_code, depth, fingerprint, child_number
 
+def root_from_seed( seed ):
+    ''' Compute BIP-32 root (master extended keys) from seed. '''
+    I = hmac_sha512(b"Bitcoin seed", seed)
+    master_prvkey = I[0:32]
+    if not ( 0 < int.from_bytes(master_prvkey,'big') < ecdsa.ecdsa.generator_secp256k1.order() ):
+        raise KeyDerivationError("wrong seed: master private key must be lower than ec generator order")
+    master_chain_code = I[32:]
+    master_pubkey = PublicKey.from_prvkey( master_prvkey ).to_ser()
+    xprv = encode_xkey( master_prvkey, master_chain_code )
+    xpub = encode_xkey( master_pubkey, master_chain_code )
+    return xprv, xpub
+
 def xpub_from_xprv( xprv ):
     prvkey, chain_code, depth, fingerprint, child_number = decode_xkey( xprv )
-    pubkey = EllipticCurveKey( kpar, compressed=True ).serialize_pubkey()
+    pubkey = PublicKey.from_prvkey( prvkey ).to_ser()
     return encode_xkey(pubkey, chain_code, depth, fingerprint, child_number)
 
 def CKD_prv(kpar, cpar, index):
     ''' Child key derivation from a private key (BIP-32). '''
     assert len(kpar) == 32
-    hardened = (index >= BIP32_HARDENED)
-    if hardened:
+    if index >= BIP32_HARDENED:
         key_and_index = bytes([0]) + kpar + index.to_bytes(4,'big')
     else:
-        Kpar = EllipticCurveKey( kpar, compressed=True ).serialize_pubkey()
+        Kpar = PublicKey.from_prvkey( kpar ).to_ser()
         key_and_index = Kpar + index.to_bytes(4,'big')
     I = hmac_sha512(cpar, key_and_index)
     order = ecdsa.ecdsa.generator_secp256k1.order()
@@ -195,10 +244,10 @@ def CKD_pub(Kpar, cpar, index):
         raise KeyDerivationError("Derivation from a public key cannot be hardened")
     key_and_index = Kpar + index.to_bytes(4,'big')
     I = hmac_sha512(cpar, key_and_index)
-    pt_G = ecdsa.SECP256k1.generator
-    pt_K = ser_to_point(Kpar)
+    pt_G = ecdsa.ecdsa.generator_secp256k1
+    pt_K = PublicKey.from_ser( Kpar ).to_ec_point()
     pt_Ki = int.from_bytes(I[0:32],'big') * pt_G + pt_K
-    Ki = point_to_ser(pt_Ki, True)
+    Ki = PublicKey.from_ec_point( pt_Ki ).to_ser()
     ci = I[32:]
     return Ki, ci
 
@@ -220,10 +269,10 @@ def private_derivation(xprv, branch, sequence):
         cpar = c
         k, c = CKD_prv(kpar, cpar, index)
         depth += 1
-    Kpar = EllipticCurveKey(kpar, compressed=True).serialize_pubkey()
+    Kpar = PublicKey.from_prvkey( kpar ).to_ser()
     fingerprint = hash160(Kpar)[0:4]
     child_number = index.to_bytes(4,'big')
-    K = EllipticCurveKey(k, compressed=True).serialize_pubkey()
+    K = PublicKey.from_prvkey( k ).to_ser()
     xprv = encode_xkey(k, c, depth, fingerprint, child_number)
     xpub = encode_xkey(K, c, depth, fingerprint, child_number)
     return xprv, xpub

@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from base58 import *
-from crypto import hash160  
+from crypto import hash160
 
 from constants import bch_mainnet
 
@@ -257,8 +257,8 @@ class Address:
         
     @classmethod
     def from_pubkey(self, pubkey):
-        '''Returns a P2PKH address from a public key.  The public key can
-        be bytes or a hex string.'''
+        '''Returns a P2PKH address from a serialized public key.  The public
+        key can be bytes or a hex string.'''
         if isinstance(pubkey, str):
             pubkey = bytes.fromhex(pubkey)
         return self(hash160(pubkey), self.ADDR_P2PKH)
