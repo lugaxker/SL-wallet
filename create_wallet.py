@@ -141,17 +141,5 @@ if __name__ == '__main__':
         for i in addr_index:
             print(" ", i, addresses[i], pubkeys[i], prvkeys[i] )
     
-    print()
-    print("Private and public keys")
-    
-    wifkey = "KxJGuUFJqtxvRSvYG74jHCr5ev6VBjtfiotFQay1e2rfzu5Vk8FN"
-    k = PrivateKey.from_wif(wifkey)
-    print( "wifkey", wifkey )
-    signature = k.sign( sha256( "olala".encode("utf-8") ) )
-    print(signature.hex())
-    K = PublicKey.from_prvkey( wifkey )
-    print("ser K", K.to_ser( strtype=True ) )
-    print("address", Address.from_pubkey(K.to_ser()).to_cash() )
-    
     
     
