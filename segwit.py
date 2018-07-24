@@ -131,11 +131,11 @@ if __name__ == '__main__':
     witver = 0
     
     # Native segwit P2WPKH address
-    segaddr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, addr.hash_addr )
+    segaddr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, addr.h )
     print("SegWit Address (P2WPKH)", segaddr)
     
     # P2SH-nested segwit P2WPKH address
-    witness_script = bytes([witver]) + push_data( addr.hash_addr )
+    witness_script = bytes([witver]) + push_data( addr.h )
     segaddr_p2sh = Address.from_script( witness_script )
     print("SegWit Address (P2WPKH-P2SH)", segaddr_p2sh.to_legacy() )
     

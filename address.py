@@ -200,7 +200,10 @@ class CashAddr:
         return ':'.join([prefix, CashAddr.encode(prefix, kind, addr_hash)])
 
 class Address:
-    ''' Address. '''
+    ''' Address. 
+    .kind: address kind (P2PKH or P2SH)
+    .h: 20-byte information (hash of public key or redeem script)
+    .fmt: address format (legacy 1... or cash q...)'''
     
     # Address kinds
     ADDR_P2PKH = 0
@@ -213,11 +216,11 @@ class Address:
     CASHADDR_PREFIX = "bitcoincash"
     SEGWIT_HRP = "bc"
     
-    def __init__(self, hash_addr, kind):
+    def __init__(self, h, kind):
         assert kind in (self.ADDR_P2PKH, self.ADDR_P2SH)
         self.kind = kind
-        assert len(hash_addr) == 20
-        self.hash_addr = hash_addr
+        assert len(h) == 20
+        self.h = h
         self.fmt = self.FMT_CASH
         
     @classmethod
@@ -264,32 +267,32 @@ class Address:
         return self(hash160(pubkey), self.ADDR_P2PKH)
     
     @classmethod
-    def from_P2PKH_hash(self, hash_addr):
+    def from_P2PKH_hash(self, pubkey_hash):
         '''Initialize from a P2PKH hash.'''
-        return self(hash_addr, self.ADDR_P2PKH)
-    
-    @classmethod
-    def from_P2SH_hash(self, hash_addr):
-        '''Initialize from a P2SH hash.'''
-        return self(hash_addr, self.ADDR_P2SH)
+        return self(pubkey_hash, self.ADDR_P2PKH)
     
     @classmethod
     def from_script(self, script):
         '''Initialize from a P2SH hash.'''
         return self(hash160(script), self.ADDR_P2SH)
-            
+    
+    @classmethod
+    def from_P2SH_hash(self, script_hash):
+        '''Initialize from a P2SH hash.'''
+        return self(script_hash, self.ADDR_P2SH)
+    
     def to_cash(self):
-        return CashAddr.encode(self.CASHADDR_PREFIX, self.kind, self.hash_addr)
+        return CashAddr.encode(self.CASHADDR_PREFIX, self.kind, self.h)
     
     def to_full_cash(self):
-        return CashAddr.encode_full(self.CASHADDR_PREFIX, self.kind, self.hash_addr)
+        return CashAddr.encode_full(self.CASHADDR_PREFIX, self.kind, self.h)
     
     def to_legacy(self):
         if self.kind == self.ADDR_P2PKH:
             verbyte = bch_mainnet.P2PKH_VERBYTE
         else:
             verbyte = bch_mainnet.P2SH_VERBYTE
-        return Base58.encode_check(bytes([verbyte]) + self.hash_addr)
+        return Base58.encode_check(bytes([verbyte]) + self.h)
     
     def to_string(self):
         if self.fmt == self.FMT_CASH:

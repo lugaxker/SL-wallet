@@ -74,10 +74,10 @@ def locking_script( addr ):
     assert isinstance( addr, Address )
     if addr.kind == Address.ADDR_P2PKH:
         return (bytes([OP_DUP, OP_HASH160]) + 
-            push_data( addr.hash_addr ) + 
+            push_data( addr.h ) + 
             bytes([OP_EQUALVERIFY, OP_CHECKSIG]))
     elif addr.kind == Address.ADDR_P2SH:
-        return (bytes([OP_HASH160]) + push_data( addr.hash_addr ) 
+        return (bytes([OP_HASH160]) + push_data( addr.h ) 
                 + bytes([OP_EQUAL]))
     return None
 
@@ -88,11 +88,11 @@ def unlocking_script( addr, pubkeys, signatures ):
     if addr.kind == Address.ADDR_P2PKH:
         sig = signatures[0]
         pubkey = pubkeys[0]
-        assert addr.hash_addr == hash160(pubkey) 
+        assert addr.h == hash160(pubkey) 
         return (push_data( sig ) + push_data( pubkey ))
     elif addr.kind == Address.ADDR_P2SH:
         redeemScript = multisig_locking_script(pubkeys, len(signatures))
-        assert addr.hash_addr == hash160(redeemScript) 
+        assert addr.h == hash160(redeemScript) 
         return (multisig_unlocking_script(signatures) 
                 + push_data( redeemScript ))
 
