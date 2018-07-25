@@ -39,10 +39,10 @@ def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid
     tx.compute_fee()
     
     # Signing
-    tx.sign([prvkey])
+    tx.sign([[prvkey]])
     
     # Computation of raw transaction
-    tx.serialize()
+    rawtx = tx.serialize()
 
     fee = tx.get_fee()
     print("Input address", input_address)
@@ -52,7 +52,7 @@ def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid
     print()
     
     if tx.iscomplete:
-        return tx.raw, tx.txid(), fee
+        return rawtx, tx.txid(), fee
     else: 
         return None
     

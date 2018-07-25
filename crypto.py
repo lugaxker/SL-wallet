@@ -69,7 +69,7 @@ class PrivateKey:
         payload = Base58.decode_check( wifkey )
         assert len(payload) in (33,34)
         if payload[0] != Constants.WIF_PREFIX:
-            raise BaseError('wrong version byte for WIF private key')
+            raise ValueError('wrong version byte for WIF private key')
         secret = int.from_bytes( payload[1:33], 'big' )
         compressed = (len(payload) == 34)
         return self( secret, compressed )

@@ -48,7 +48,7 @@ if __name__ == '__main__':
     
     tx1 = Transaction.minimal_transaction( [ pubkey1.to_ser(strtype=True) ], 1, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     tx1.compute_fee()
-    tx1.sign([prvkey1]) # signature 
+    tx1.sign([[prvkey1]]) # signature 
     tx1.serialize() # computation of raw transaction
     
     
@@ -78,15 +78,15 @@ if __name__ == '__main__':
     tx2 = Transaction.minimal_transaction([pk.hex() for pk in pubkeys], nsigs, output_address, prevout_txid, prevout_index, prevout_value, locktime)
     
     tx2.compute_fee()
-    prvkeys = [ PrivateKey.from_wif( wifkeys_multisig[2] ), PrivateKey.from_wif( wifkeys_multisig[0] ) ]
+    prvkeys = [[ PrivateKey.from_wif( wifkeys_multisig[2] ), PrivateKey.from_wif( wifkeys_multisig[0] ) ]]
     tx2.sign(prvkeys)  
     tx2.serialize()
     
     fee = tx2.get_fee()
     print()
     print("--- TRANSACTION 2 ---")
-    print("Input address", input_address)
-    print("Output address (multisig)", output_address)
+    print("Input address (multisig)", input_address)
+    print("Output address", output_address)
     print("Amount", prevout_value-fee)
     print("Fee: {:d} sats".format(fee) )
     print("Size: {:d} bytes".format(len(tx2.raw)))
