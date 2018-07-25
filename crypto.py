@@ -219,6 +219,7 @@ def root_from_seed( seed ):
     return xprv, xpub
 
 def xpub_from_xprv( xprv ):
+    ''' Gets extended public key from extended private key. '''
     prvkey, chain_code, depth, fingerprint, child_number = decode_xkey( xprv )
     pubkey = PublicKey.from_prvkey( prvkey ).to_ser()
     return encode_xkey(pubkey, chain_code, depth, fingerprint, child_number)
