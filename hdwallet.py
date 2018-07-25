@@ -1,10 +1,121 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from crypto import (PrivateKey, seed_from_mnemonic, root_from_seed, decode_xkey, private_derivation, public_derivation)
+import hashlib
+import sha3 # pysha3
+
+from base58 import Base58
+from crypto import (hash160, PrivateKey, PublicKey, seed_from_mnemonic, root_from_seed, 
+                    decode_xkey, private_derivation, public_derivation)
+from address import Address
 from mnemonic import generate_mnemonic
 
+BTC_P2PKH_VERBYTE = 0x00
+DSH_P2PKH_VERBYTE = 0x4c
 
+BCH_WIF_PREFIX = 0x80
+BTC_WIF_PREFIX = 0x80
+DSH_WIF_PREFIX = 0xcc
+
+BTC_BIP44_TYPE = 0x00
+BCH_BIP44_TYPE = 0x91
+DSH_BIP44_TYPE = 0x05
+ETH_BIP44_TYPE = 0x3c
+
+# Ethereum functions
+
+def keccak256(x):
+    return sha3.keccak_256( x ).digest()
+    
+def sha3_256(x):
+    return hashlib.sha3_256( x ).digest()
+    
+def eth_checksum_encode( addr ): # hex address
+    o = ''
+    v = int.from_bytes( keccak256( addr.encode('utf-8') ), 'big')
+    for i, c in enumerate( addr ):
+        if c in '0123456789':
+            o += c
+        else:
+            o += c.upper() if (v & (1 << (255 - 4*i))) else c.lower()
+    return '0x' + o
+    
+def eth_test_checksum(addrstr):
+    assert(addrstr == eth_checksum_encode(addrstr[2:].lower()))
+    
+def eth_pubkey_to_addr( pubkey ):
+    assert( pubkey[0] == 0x04 )
+    return eth_checksum_encode( keccak256( pubkey[1:] )[-20:].hex() )
+
+# Derivation
+
+def get_account( mxprv, coin, i ):
+    ''' Returns extended keys (private and public) of the account i. '''
+    if coin == "bch":
+        coin_type = BCH_BIP44_TYPE
+    elif coin == "btc":
+        coin_type = BTC_BIP44_TYPE
+    elif coin == "dsh":
+        coin_type = DSH_BIP44_TYPE
+    elif coin == "eth":
+        coin_type = ETH_BIP44_TYPE
+    else:
+        raise ValueError("wrong type of coin: {}", coin)
+    
+    branch = "m"
+    sequence = "m/44'/{:d}'/{:d}'".format(coin_type, i)
+    return private_derivation(mxprv, branch, sequence)
+
+def get_adresses_from_account( account_xpub, coin, addr_index, change ):
+    if isinstance(addr_index, int):
+        addr_index = [addr_index]
+    branch_number = 1 if change else 0
+    pubkeys = []
+    addresses = []
+    for i in addr_index:
+        sequence = "/{:d}/{:d}".format(branch_number, i)
+        xpub = public_derivation( account_xpub, "", sequence )
+        cpubkey, _, _, _, _ = decode_xkey( xpub )
+
+        if coin == "bch":
+            pubkeys.append( cpubkey.hex() )
+            addresses.append( Address.from_pubkey( cpubkey ).to_cash() )
+        elif coin == "btc":
+            pubkeys.append( cpubkey.hex() )
+            addresses.append( Base58.encode_check( bytes([BTC_P2PKH_VERBYTE]) + hash160(cpubkey) ) )
+        elif coin == "dsh":
+            pubkeys.append( cpubkey.hex() )
+            addresses.append( Base58.encode_check( bytes([DSH_P2PKH_VERBYTE]) + hash160(cpubkey) ) )
+        elif coin == "eth":
+            pubkey = PublicKey.from_ser( cpubkey )
+            pubkey.uncompress()
+            pubkeys.append( pubkey.to_ser(strtype=True) )
+            addresses.append( eth_pubkey_to_addr( pubkey.to_ser() ) )
+        else:
+            raise ValueError("wrong type of coin: {}", coin)
+    return addresses, pubkeys
+
+def get_prvkeys_from_account( account_xprv, coin, addr_index, change ):
+    if isinstance(addr_index, int):
+        addr_index = [addr_index]
+    branch_number = 1 if change else 0
+    prvkeys = []
+    for i in addr_index:
+        sequence = "/{:d}/{:d}".format(branch_number, i)
+        xprv, _ = private_derivation( account_xprv, "", sequence )
+        prvkey, _, _, _, _ = decode_xkey( xprv )
+        if coin == "bch":
+            prvkeys.append( Base58.encode_check( bytes([BCH_WIF_PREFIX]) + prvkey + bytes([0x01]) ) )
+        elif coin == "btc":
+            prvkeys.append( Base58.encode_check( bytes([BTC_WIF_PREFIX]) + prvkey + bytes([0x01]) ) )
+        elif coin == "dsh":
+            prvkeys.append( Base58.encode_check( bytes([DSH_WIF_PREFIX]) + prvkey + bytes([0x01]) ) )
+        elif coin == "eth":
+            prvkeys.append( "0x" + prvkey.hex() )
+        else:
+            raise ValueError("wrong type of coin: {}", coin)
+    
+    return prvkeys
 
 if __name__ == '__main__':
     
@@ -12,95 +123,33 @@ if __name__ == '__main__':
     if sys.version_info < (3, 5):
         sys.exit("Error: Must be using Python 3.5 or higher")
         
-    # https://iancoleman.io/bip39/
-    # BIP-39 mnemonic phrase: hundred garage genius weekend echo explain deal swamp kitchen crunch rigid lyrics
-    # BIP-39 seed: 923f4490a96a1de7fb21150be66ea57e93311bc47900eec571be5abed344bbf90ce72cbb2e8a51e65ec36c7d6701802cecb0766b20bf3df37899c3fb95ac8249
-    # BIP-32 root key: xprv9s21ZrQH143K27eKKfiNJLPJSX8oYi8AP8VM7CRtCRiHxrJjG28RzjtoGrHZm5vh58uTmL2ExHUgoi2Z6zVZsLRzhMuAkSPuBCwtvcp6Dbr
+    # See https://iancoleman.io/bip39/
     
-    nbits = 128
-    random_mnemonic = generate_mnemonic(nbits)
-    print("Random mnemonic phrase ({} words): {}".format((nbits + nbits//32) // 11, random_mnemonic))
-    
-    mnemonic = "hundred garage genius weekend echo explain deal swamp kitchen crunch rigid lyrics"
-    mnemonic = "repeat chaos salon trash omit index indoor nephew catch blood come weather"
-    print("Mnemonic phrase:", mnemonic)
-    
-    seed = seed_from_mnemonic(mnemonic, "")
-    print("Seed", seed.hex())
-    
+    mnemonic = "zoo remove narrow bronze dizzy fashion scatter fossil ask clog bar slight"
+    seed = seed_from_mnemonic( mnemonic )
     mxprv, mxpub = root_from_seed( seed )
     print()
-    print("Master keys")
-    print(" xprv", mxprv)
-    print(" xpub", mxpub)
-        
-    # Child key derivation (show xprv xpub ?)
-    print()
-    print("Child key derivation from the master private key (m)")
-    xprv_0, xpub_0 = private_derivation(mxprv, "m", "m/0")
-    print(" xprv m/0", xprv_0 )
-    print(" xpub M/0", xpub_0 )
-    k_0, _, _, _, _ = decode_xkey(xprv_0)
-    K_0, _, _, _, _ = decode_xkey(xpub_0)
-    print(" private key m/0", PrivateKey.from_hex( k_0 ).to_wif() )
-    print(" public key M/0", K_0.hex())
+    print("HD WALLET")
+    print("Mnemonic phrase:", mnemonic)
+    print("Seed", seed.hex())
+    print("Root (master extended private key and master extended public key)")
+    print(" ", mxprv)
+    print(" ", mxpub)
     
+    # Create 3 external addresses (receiving addresses) for BCH, BTC, DSH and ETH
+    n_addresses = 3
+    coin = "eth"
+    for coin in ["bch", "btc", "dsh", "eth"]:
+        account_xprv, account_xpub = get_account(mxprv, coin, 0)
+        addr_index = range(0, n_addresses)
+        addresses, pubkeys = get_adresses_from_account( account_xpub, coin, addr_index, change=False )
+        prvkeys = get_prvkeys_from_account(account_xprv, coin, addr_index, change=False)
+        print()
+        print("--- {} ---".format(coin.upper()))
+        print("Account")
+        print(" ", account_xprv)
+        print(" ", account_xpub)
+        print("Adresses and associated public and private keys")
+        for i in addr_index:
+            print(" ", i, addresses[i], pubkeys[i], prvkeys[i] )
     print()
-    print("Hardened child key derivation from the master private key (m)")
-    xprv_0, xpub_0 = private_derivation(mxprv, "m", "m/0'")
-    print(" xprv m/0'", xprv_0 )
-    print(" xpub M/0'", xpub_0 )
-    k_0, _, _, _, _ = decode_xkey(xprv_0)
-    K_0, _, _, _, _ = decode_xkey(xpub_0)
-    print(" private key m/0'", PrivateKey.from_hex( k_0 ).to_wif() )
-    print(" public key M/0'", K_0.hex())
-    
-    print()
-    print("BIP-44 first BTC account")
-    branch = "m"
-    sequence = "m/44'/0'/0'"
-    xprv_account, xpub_account = private_derivation(mxprv, branch, sequence)
-    print(" xprv {}".format(sequence), xprv_account )
-    print(" xpub {}".format("M" + sequence[1:]), xpub_account )
-    k_account, _, _, _, _ = decode_xkey(xprv_account)
-    K_account, _, _, _, _ = decode_xkey(xpub_account)
-    print(" private key {}".format(sequence), PrivateKey.from_hex( k_account ).to_wif() )
-    print(" public key {}".format(sequence), K_account.hex())
-    
-    print()
-    print("BIP-44 first external address of the first BTC account")
-    branch = "m"
-    sequence = "m/44'/0'/0'/0/0"
-    xprv_bip_144, xpub_bip_144 = private_derivation(mxprv, branch, sequence)
-    print(" xprv {}".format(sequence), xprv_bip_144 )
-    print(" xpub {}".format("M" + sequence[1:]), xpub_bip_144 )
-    k_bip_144, _, _, _, _ = decode_xkey(xprv_bip_144)
-    K_bip_144, _, _, _, _ = decode_xkey(xpub_bip_144)
-    print(" private key {}".format(sequence), PrivateKey.from_hex( k_bip_144 ).to_wif() )
-    print(" public key {}".format(sequence), K_bip_144.hex())
-
-    print()
-    print("Public derivation")
-    xprv_44_0_0, xpub_44_0_0 = private_derivation(mxprv, "m", "m/44'/0'/0'")
-    xpub_44_0_0_0_0 = public_derivation( xpub_44_0_0, "m/44'/0'/0'", "m/44'/0'/0'/0/0" )
-    print(" xpub m/44'/0'/0'/0/0", xpub_44_0_0_0_0)
-    K_44_0_0_0_0, _, _, _, _ = decode_xkey( xpub_44_0_0_0_0 )
-    print(" public key m/44'/0'/0'/0/0", K_44_0_0_0_0.hex())
-    
-    print()
-    print("Dash keys and address")
-    branch = "m/"
-    sequence = "m/44'/5'/0'/0/0"
-    xprv_dash, xpub_dash = private_derivation(mxprv, branch, sequence)
-    k_dash, _, _, _, _ = decode_xkey(xprv_dash)
-    K_dash, _, _, _, _ = decode_xkey(xpub_dash)
-    
-    from base58 import Base58
-    from constants import dsh_mainnet
-    payload = bytes([dsh_mainnet.WIF_PREFIX]) + k_dash + bytes([0x01])
-    wifkey_dash = Base58.encode_check( payload )
-    print(" private key {}".format(sequence), wifkey_dash)
-    print(" public key {}".format(sequence), K_dash.hex())
-    from crypto import hash160
-    dash_address = Base58.encode_check( bytes([0x4c]) + hash160(K_dash) )
-    print(" dash address {}".format(sequence), dash_address)
