@@ -11,7 +11,6 @@ class SegWitAddr:
     # Copyright (c) 2017 Pieter Wuille
     
     SEGWIT_HRP = "bc"
-    
     CHARSET = "qpzry9x8gf2tvdw0s3jn54khce6mua7l"
 
     @staticmethod

@@ -68,14 +68,14 @@ class PrivateKey:
         assert isinstance( wifkey, str )
         payload = Base58.decode_check( wifkey )
         assert len(payload) in (33,34)
-        if payload[0] != bch_mainnet.WIF_PREFIX:
+        if payload[0] != Constants.WIF_PREFIX:
             raise BaseError('wrong version byte for WIF private key')
         secret = int.from_bytes( payload[1:33], 'big' )
         compressed = (len(payload) == 34)
         return self( secret, compressed )
     
     def to_wif(self):
-        payload = bytes([bch_mainnet.WIF_PREFIX]) + self.secret.to_bytes(32, 'big')
+        payload = bytes([Constants.WIF_PREFIX]) + self.secret.to_bytes(32, 'big')
         if self.compressed:
             payload += bytes([0x01])
         return Base58.encode_check( payload )
@@ -183,9 +183,9 @@ def seed_from_mnemonic( mnemonic, passphrase = "" ):
 def encode_xkey(key, chain_code, depth = 0, fingerprint=b'\x00'*4, child_number=b'\x00'*4):
     assert len(key) in (32,33)
     if len(key) == 32:
-        payload = XPRV_HEADER.to_bytes(4, 'big') + bytes([depth]) + fingerprint + child_number + chain_code + bytes([0x00]) + key
+        payload = Constants.XPRV_HEADER.to_bytes(4, 'big') + bytes([depth]) + fingerprint + child_number + chain_code + bytes([0x00]) + key
     elif len(key) == 33:
-        payload = XPUB_HEADER.to_bytes(4, 'big') + bytes([depth]) + fingerprint + child_number + chain_code + key
+        payload = Constants.XPUB_HEADER.to_bytes(4, 'big') + bytes([depth]) + fingerprint + child_number + chain_code + key
     return Base58.encode_check( payload )
 
 def decode_xkey( xkey ):
@@ -197,10 +197,10 @@ def decode_xkey( xkey ):
     child_number = payload[9:13]
     chain_code = payload[13:45]
     
-    assert ( header in (XPRV_HEADER, XPUB_HEADER) )
-    if header == XPRV_HEADER:
+    assert ( header in (Constants.XPRV_HEADER, Constants.XPUB_HEADER) )
+    if header == Constants.XPRV_HEADER:
         key = payload[46:]
-    elif header == XPUB_HEADER:
+    elif header == Constants.XPUB_HEADER:
         key = payload[45:]
     else:
         raise KeyDerivationError('Invalid extended key format')
@@ -227,7 +227,7 @@ def xpub_from_xprv( xprv ):
 def CKD_prv(kpar, cpar, index):
     ''' Child key derivation from a private key (BIP-32). '''
     assert len(kpar) == 32
-    if index >= BIP32_HARDENED:
+    if index >= Constants.BIP32_HARDENED:
         key_and_index = bytes([0]) + kpar + index.to_bytes(4,'big')
     else:
         Kpar = PublicKey.from_prvkey( kpar ).to_ser()
@@ -241,7 +241,7 @@ def CKD_prv(kpar, cpar, index):
 def CKD_pub(Kpar, cpar, index):
     ''' Child key derivation from a compressed public key (BIP-32). '''
     assert len(Kpar) == 33
-    if index >= BIP32_HARDENED:
+    if index >= Constants.BIP32_HARDENED:
         raise KeyDerivationError("Derivation from a public key cannot be hardened")
     key_and_index = Kpar + index.to_bytes(4,'big')
     I = hmac_sha512(cpar, key_and_index)
@@ -265,7 +265,7 @@ def private_derivation(xprv, branch, sequence):
     k, c, depth, _ , _ = decode_xkey( xprv )
     for n in sequence.split("/"):
         if n == "": continue
-        index = int(n[:-1]) + BIP32_HARDENED if n[-1] == "'" else int(n)
+        index = int(n[:-1]) + Constants.BIP32_HARDENED if n[-1] == "'" else int(n)
         kpar = k
         cpar = c
         k, c = CKD_prv(kpar, cpar, index)

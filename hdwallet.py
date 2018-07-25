@@ -79,7 +79,7 @@ def get_adresses_from_account( account_xpub, coin, addr_index, change ):
 
         if coin == "bch":
             pubkeys.append( cpubkey.hex() )
-            addresses.append( Address.from_pubkey( cpubkey ).to_cash() )
+            addresses.append( Address.from_pubkey( cpubkey ).to_full_cash() )
         elif coin == "btc":
             pubkeys.append( cpubkey.hex() )
             addresses.append( Base58.encode_check( bytes([BTC_P2PKH_VERBYTE]) + hash160(cpubkey) ) )
@@ -105,7 +105,7 @@ def get_prvkeys_from_account( account_xprv, coin, addr_index, change ):
         xprv, _ = private_derivation( account_xprv, "", sequence )
         prvkey, _, _, _, _ = decode_xkey( xprv )
         if coin == "bch":
-            prvkeys.append( Base58.encode_check( bytes([BCH_WIF_PREFIX]) + prvkey + bytes([0x01]) ) )
+            prvkeys.append( PrivateKey.from_hex( prvkey, compressed=True ).to_wif() )
         elif coin == "btc":
             prvkeys.append( Base58.encode_check( bytes([BTC_WIF_PREFIX]) + prvkey + bytes([0x01]) ) )
         elif coin == "dsh":

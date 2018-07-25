@@ -2,12 +2,12 @@
 # -*- coding: utf-8 -*-
 
 from crypto import (PublicKey, seed_from_mnemonic, root_from_seed, xpub_from_xprv, private_derivation)
-from constants import bch_mainnet
+from constants import *
 from mnemonic import generate_mnemonic
 
 def get_account( mxprv, i ):
     ''' Returns extended keys (private and public) of the account i (BIP-44).'''
-    coin_type = bch_mainnet.BIP44_TYPE
+    coin_type = Constants.BIP44_TYPE
     branch = "m"
     sequence = "m/44'/{:d}'/{:d}'".format(coin_type, i)
     return private_derivation(mxprv, branch, sequence)

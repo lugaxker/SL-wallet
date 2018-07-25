@@ -4,7 +4,7 @@
 from base58 import *
 from crypto import hash160
 
-from constants import bch_mainnet
+from constants import *
 
 class AddressError(Exception):
     '''Exception used for Address errors.'''
@@ -213,11 +213,8 @@ class Address:
     FMT_CASH = 0
     FMT_LEGACY = 1
     
-    CASHADDR_PREFIX = "bitcoincash"
-    SEGWIT_HRP = "bc"
-    
     def __init__(self, h, kind):
-        assert kind in (self.ADDR_P2PKH, self.ADDR_P2SH)
+        assert kind in (Constants.CASH_P2PKH, Constants.CASH_P2SH)
         self.kind = kind
         assert len(h) == 20
         self.h = h
@@ -226,7 +223,7 @@ class Address:
     @classmethod
     def from_cash_string(self, string):
         '''Initialize from a cash address string.'''
-        prefix = self.CASHADDR_PREFIX
+        prefix = Constants.CASH_HRP
         #if string.upper() == string:
             #prefix = prefix.upper()
         if not string.startswith(prefix + ':'):
@@ -242,10 +239,10 @@ class Address:
         '''Initialize from a legacy address string.'''
         vpayload = Base58.decode_check( string )
         verbyte, addr_hash = vpayload[0], vpayload[1:]
-        if verbyte == bch_mainnet.P2PKH_VERBYTE:
-            kind = self.ADDR_P2PKH
-        elif verbyte == bch_mainnet.P2SH_VERBYTE:
-            kind = self.ADDR_P2SH
+        if verbyte == Constants.LEGACY_P2PKH:
+            kind = Constants.CASH_P2PKH
+        elif verbyte == Constants.LEGACY_P2SH:
+            kind = Constants.CASH_P2SH
         else:
             raise AddressError("unknown version byte: {}".format(verbyte))
         return self(addr_hash, kind)
@@ -264,34 +261,34 @@ class Address:
         key can be bytes or a hex string.'''
         if isinstance(pubkey, str):
             pubkey = bytes.fromhex(pubkey)
-        return self(hash160(pubkey), self.ADDR_P2PKH)
+        return self(hash160(pubkey), Constants.CASH_P2PKH)
     
     @classmethod
-    def from_P2PKH_hash(self, pubkey_hash):
-        '''Initialize from a P2PKH hash.'''
-        return self(pubkey_hash, self.ADDR_P2PKH)
+    def from_pubkey_hash(self, pubkey_hash):
+        '''Initializes from a public key hash.'''
+        return self(pubkey_hash, Constants.CASH_P2PKH)
     
     @classmethod
     def from_script(self, script):
-        '''Initialize from a P2SH hash.'''
-        return self(hash160(script), self.ADDR_P2SH)
+        '''Initializes from a redeem script.'''
+        return self(hash160(script), Constants.CASH_P2SH)
     
     @classmethod
-    def from_P2SH_hash(self, script_hash):
-        '''Initialize from a P2SH hash.'''
-        return self(script_hash, self.ADDR_P2SH)
+    def from_script_hash(self, script_hash):
+        '''Initializes from a redeem script hash.'''
+        return self(script_hash, Constants.CASH_P2SH)
     
     def to_cash(self):
-        return CashAddr.encode(self.CASHADDR_PREFIX, self.kind, self.h)
+        return CashAddr.encode(Constants.CASH_HRP, self.kind, self.h)
     
     def to_full_cash(self):
-        return CashAddr.encode_full(self.CASHADDR_PREFIX, self.kind, self.h)
+        return CashAddr.encode_full(Constants.CASH_HRP, self.kind, self.h)
     
     def to_legacy(self):
-        if self.kind == self.ADDR_P2PKH:
-            verbyte = bch_mainnet.P2PKH_VERBYTE
+        if self.kind == Constants.CASH_P2PKH:
+            verbyte = Constants.LEGACY_P2PKH
         else:
-            verbyte = bch_mainnet.P2SH_VERBYTE
+            verbyte = Constants.LEGACY_P2SH
         return Base58.encode_check(bytes([verbyte]) + self.h)
     
     def to_string(self):

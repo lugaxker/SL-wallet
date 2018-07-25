@@ -1,49 +1,39 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-XPRV_HEADER = 0x0488ade4
-XPUB_HEADER = 0x0488b21e
-BIP32_HARDENED = 0x80000000
-
-class bch_mainnet:
-    '''Bitcoin Cash main network constants.'''
-    WIF_PREFIX = 0x80
-    P2PKH_VERBYTE = 0x00
-    P2SH_VERBYTE = 0x05
+class Constants:
+    '''Bitcoin Cash network constants.'''
     
-    BIP44_TYPE = 0x91
+    BIP32_HARDENED = 0x80000000
     
-class bch_testnet:
-    '''Bitcoin Cash test network constants.'''
-    WIF_PREFIX = 0xef
+    @classmethod
+    def set_mainnet(self):
+        ''' Main network. '''
+        self.WIF_PREFIX = 0x80
+        self.LEGACY_P2PKH = 0x00
+        self.LEGACY_P2SH = 0x05
+        self.CASH_P2PKH = 0x00
+        self.CASH_P2SH = 0x01
+        self.CASH_HRP = "bitcoincash"
+        
+        self.XPRV_HEADER = 0x0488ade4
+        self.XPUB_HEADER = 0x0488b21e
+        
+        self.BIP44_TYPE = 0x91
     
-    BIP44_TYPE = 0x01
-    
-class btc_mainnet:
-    '''Bitcoin Core main network constants.'''
-    WIF_PREFIX = 0x80
-    
-class btc_testnet:
-    '''Bitcoin Core test network constants.'''
-    WIF_PREFIX = 0xef
-    
-    BIP44_TYPE = 0x01
-    
-class dsh_mainnet:
-    '''Dash main network constants.'''
-    WIF_PREFIX = 0xcc
-    P2PKH_VERBYTE = 0x4c
-    
-    BIP44_TYPE = 0x05
-    
-class dsh_testnet:
-    '''Dash test network constants.'''
-    BIP44_TYPE = 0x01
-    
-class ltc_mainnet:
-    '''Litecoin main network constants.'''
-    BIP44_TYPE = 0x02
-    
-class ltc_testnet:
-    '''Litecoin test network constants.'''
-    BIP44_TYPE = 0x01
+    @classmethod
+    def set_testnet(self):
+        ''' Test network. '''
+        self.WIF_PREFIX = 0xef
+        self.LEGACY_P2PKH = 0x6f
+        self.LEGACY_P2SH = 0xc4
+        self.CASH_P2PKH = 0x00
+        self.CASH_P2SH = 0x01
+        self.CASH_HRP = "bchtest"
+        
+        self.XPRV_HEADER = 0x043587cf
+        self.XPUB_HEADER = 0x04358394
+        
+        self.BIP44_TYPE = 0x01
+        
+Constants.set_testnet()
