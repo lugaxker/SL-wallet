@@ -5,16 +5,7 @@ import time
 import random
 
 from crypto import dsha256
-
-# BTC constants
-BTC_MAINNET_NETWORK_MAGIC = 0xd9b4bef9
-BTC_TESTNET_NETWORK_MAGIC = 0x0709110b
-BTC_REGTEST_NETWORK_MAGIC = 0xdab5bffa
-
-# BCH constants 
-MAINNET_NETWORK_MAGIC = 0xe8f3e1e3
-TESTNET_NETWORK_MAGIC = 0xf4f3e5f4
-REGTEST_NETWORK_MAGIC = 0xfabfb5da
+from constants import *
 
 DEFAULT_PORT = 8333
 
@@ -28,7 +19,7 @@ def make_message( cmd, payload ):
     ''' Message Structure for Bitcoin Protocol.
     cmd (str) : command (e.g. "version")
     payload (bytes) : actual data '''
-    magic = MAINNET_NETWORK_MAGIC.to_bytes(4,'little')
+    magic = Constants.NETWORK_MAGIC.to_bytes(4,'little')
     cmdb = cmd.encode('ascii')
     command = cmdb + ( ( 12 - len(cmdb) ) * b"\00" )
     length = len(payload).to_bytes(4, 'little')

@@ -83,8 +83,8 @@ def locking_script( addr ):
 
 def unlocking_script( addr, pubkeys, signatures ):
     assert isinstance( addr, Address )
-    assert isinstance( pubkeys[0], (bytes, bytearray) )
-    assert isinstance( signatures[0], (bytes, bytearray) )
+    assert isinstance( pubkeys[0], (bytes, bytearray)  )
+    assert isinstance( signatures[0], (bytes, bytearray) ) 
     if addr.kind == Address.ADDR_P2PKH:
         sig = signatures[0]
         pubkey = pubkeys[0]

@@ -14,7 +14,10 @@ if __name__ == '__main__':
     ks = DeterministicKeyStore.from_mnemonic( mnemonic )
     print( "Keystore: {0!s}".format( ks.dump() ) )
     
-    wal = Wallet.new()
-    print("Keystore: {0!s}".format( wal.keystores[0].dump() ))
+    wal = Wallet.from_mnemonic( mnemonic )
+    print("Keystore: {0!s}".format( wal.keystore.dump() ))
+    
+    print( wal.addresses['external'][2] )
+    print( wal.utxos )
     
     

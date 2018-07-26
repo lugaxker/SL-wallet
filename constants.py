@@ -22,6 +22,8 @@ class Constants:
         self.XPUB_HEADER = 0x0488b21e
         
         self.BIP44_TYPE = 0x91
+        
+        self.NETWORK_MAGIC = 0xe8f3e1e3
     
     @classmethod
     def set_testnet(self):
@@ -35,5 +37,7 @@ class Constants:
         self.XPUB_HEADER = 0x04358394
         
         self.BIP44_TYPE = 0x01
+        
+        self.NETWORK_MAGIC = 0xf4f3e5f4
         
 Constants.set_mainnet()
