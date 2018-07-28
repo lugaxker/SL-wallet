@@ -33,8 +33,10 @@ def hash160(x):
 def hmac_sha512(x, y):
     return hmac.new(x, y, hashlib.sha512).digest()
 
-
 # Keys
+
+def getrandrange(order, entropy=None):
+    return ecdsa.util.randrange(order, entropy)
 
 class ModifiedSigningKey(ecdsa.SigningKey):
     '''Enforce low S values in signatures (BIP-62).'''

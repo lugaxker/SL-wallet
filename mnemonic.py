@@ -7,7 +7,7 @@ import unicodedata
 import math
 import ecdsa
 
-from crypto import sha256
+from crypto import sha256, getrandrange
 
 def load_wordlist(filename):
     path = os.path.join(os.path.dirname(__file__), 'wordlists', filename)
@@ -66,5 +66,5 @@ def generate_mnemonic( nbits=128 ):
         raise ValueError("Number of random bits must be 128, 160, 192, 224 or 256")
     filename = "english.txt"
     wordlist = load_wordlist(filename)
-    entropy = ecdsa.util.randrange(pow(2, nbits))    
+    entropy = getrandrange(1 << nbits)    
     return encode_mnemonic(entropy, wordlist, nbits)
