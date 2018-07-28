@@ -79,7 +79,7 @@ if __name__ == '__main__':
     #   port (int) : port (DEFAULT_PORT = 8333)
     # and uncomment the connexion section below.
     
-    last_block = 540926
+    last_block = 540937
     
     wifkey = "5JdSD57xmgcASmvXw4L1VqKQcboFjWdfA3GG63ShxA4kbE4ZHhh"
     output_address = "1GpSjtgw6fqfiZ6U5xxjbcUr4TWeCrrYj9"
@@ -107,7 +107,7 @@ if __name__ == '__main__':
     #sock.connect((host,port))
     #print("ok")
     
-    host = "95.183.48.48"
+    host = "46.28.204.198"
     port = 8333
     peer_address = (host, port)
     

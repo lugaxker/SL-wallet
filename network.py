@@ -305,15 +305,32 @@ class Network(threading.Thread):
         self.outgoing_data_queue.append( wrap_network_message("verack", bytes()) )
     
     def recv_verack(self, payload):
-        self.peer_verack += 1
-        if self.peer_verack == 2:
-            self.handshake = True
-    
-    def cmd_verack(self, payload):
         assert payload == bytes()
         self.peer_verack += 1
         if self.peer_verack == 2:
             self.handshake = True
+            
+    def send_pong(self, payload):
+        self.outgoing_data_queue.append( wrap_network_message("pong", payload) )
+        print('send pong')
+        
+    def recv_ping(self, payload):
+        self.send_pong(payload)
+        
+    def recv_addr(self, payload):
+        pass
+    
+    def recv_feefilter(self, payload):
+        pass
+    
+    def recv_inv(self, payload):
+        pass
+    
+    def recv_sendcmpct(self, payload):
+        pass
+    
+    def recv_sendheaders(self, payload):
+        pass
     
     def send_tx(self, tx):
         self.outgoing_data_queue.append( wrap_network_message("tx", tx) )
