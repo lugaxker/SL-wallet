@@ -7,7 +7,7 @@ from crypto import (dsha256, PrivateKey, PublicKey)
 from address import *
 from script import *
 from transaction import Transaction
-from network import make_message, version_message
+from network import *
 
 SIGHASH_ALL = 0x01
 SIGHASH_FORKID = 0x40
@@ -79,7 +79,7 @@ if __name__ == '__main__':
     #   port (int) : port (DEFAULT_PORT = 8333)
     # and uncomment the connexion section below.
     
-    last_block = 524534
+    last_block = 540926
     
     wifkey = "5JdSD57xmgcASmvXw4L1VqKQcboFjWdfA3GG63ShxA4kbE4ZHhh"
     output_address = "1GpSjtgw6fqfiZ6U5xxjbcUr4TWeCrrYj9"
@@ -88,8 +88,7 @@ if __name__ == '__main__':
     prevout_index = 0
     prevout_value = 41424 # previous output value
     
-    #host = "84.46.18.73"
-    #port = 8333
+    
     
     # Construction of transaction payload
     tx, txid, fee = construct_simple_transaction( wifkey, output_address, locktime, prevout_txid, prevout_index, prevout_value )
@@ -108,9 +107,19 @@ if __name__ == '__main__':
     #sock.connect((host,port))
     #print("ok")
     
+    host = "95.183.48.48"
+    port = 8333
+    peer_address = (host, port)
+    
     # Version message
-    ver_msg = make_message("version", version_message(0xffff7f000001, 8333, last_block))
-    print("Version message", ver_msg.hex())
+    print()
+    network_manager = Network(peer_address, last_block)
+    network_manager.start()
+    #network_manager.run()
+    time.sleep(5)
+    network_manager.shutdown()
+    #net.send_version( last_block )
+    #print("Version message", ver_msg.hex())
     #sock.send( ver_msg )
     
     #m = sock.recv( 1024 )
@@ -120,8 +129,8 @@ if __name__ == '__main__':
     #print("receive", m.hex())
     
     # Transaction message
-    tx_msg = make_message("tx", tx)
-    print("Transaction message", tx_msg.hex())
+    #tx_msg = net.send_tx(tx)
+    #print("Transaction message", tx_msg.hex())
     
     #sock.send( tx_msg )
     
