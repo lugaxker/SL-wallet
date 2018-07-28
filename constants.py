@@ -4,6 +4,8 @@
 class Constants:
     '''Bitcoin Cash network constants.'''
     
+    PROTOCOL_VERSION = 70015
+    
     BIP32_HARDENED = 0x80000000
     CASH_P2PKH = 0x00
     CASH_P2SH = 0x08 >> 3
@@ -24,6 +26,7 @@ class Constants:
         self.BIP44_TYPE = 0x91
         
         self.NETWORK_MAGIC = 0xe8f3e1e3
+        self.DEFAULT_PORT = 8333
     
     @classmethod
     def set_testnet(self):
@@ -39,5 +42,6 @@ class Constants:
         self.BIP44_TYPE = 0x01
         
         self.NETWORK_MAGIC = 0xf4f3e5f4
+        self.DEFAULT_PORT = 18333
         
 Constants.set_mainnet()
