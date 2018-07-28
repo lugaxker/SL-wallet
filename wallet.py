@@ -119,8 +119,6 @@ class DeterministicKeyStore(KeyStore):
 class Wallet:
     ''' Single keystore wallet. '''
     
-    # synchronizer ?
-    
     def __init__(self, keystore=KeyStore(), addresses={"external": [], "internal": []}, utxos=[]):
         self.addresses = addresses
         self.history = {}
@@ -146,6 +144,6 @@ class Wallet:
         return self.from_mnemonic( generate_mnemonic( 128 ) )
         
     def synchronize(self):
-        
-    
+        ''' Synchronizes with the network? '''
+        pass
         
