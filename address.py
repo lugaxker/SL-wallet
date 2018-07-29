@@ -202,23 +202,13 @@ class CashAddr:
 class Address:
     ''' Address. 
     .kind: address kind (P2PKH or P2SH)
-    .h: 20-byte information (hash of public key or redeem script)
-    .fmt: address format (legacy 1... or cash q...)'''
-    
-    # Address kinds
-    ADDR_P2PKH = 0
-    ADDR_P2SH = 1
-
-    # Address formats
-    FMT_CASH = 0
-    FMT_LEGACY = 1
+    .h: 20-byte information (hash of public key or redeem script)'''
     
     def __init__(self, h, kind):
         assert kind in (Constants.CASH_P2PKH, Constants.CASH_P2SH)
         self.kind = kind
         assert len(h) == 20
         self.h = h
-        self.fmt = self.FMT_CASH
         
     @classmethod
     def from_cash_string(self, string):
@@ -292,23 +282,10 @@ class Address:
         return Base58.encode_check(bytes([verbyte]) + self.h)
     
     def to_string(self):
-        if self.fmt == self.FMT_CASH:
-            return self.to_cash()
-        elif self.fmt == self.FMT_LEGACY:
-            return self.to_legacy()
-        else:
-            raise AddressError('unrecognised format')
-        
-    def to_full_string(self):
-        if self.fmt == self.FMT_CASH:
-            return self.to_full_cash()
-        elif self.fmt == self.FMT_LEGACY:
-            return self.to_legacy()
-        else:
-            raise AddressError('unrecognised format')
+        return self.to_cash()
         
     def __str__(self):
-        return self.to_full_string()
+        return self.to_full_cash()
 
     def __repr__(self):
-        return '<Address {}>'.format(self.to_string())
+        return '<Address {}>'.format(self.to_cash())
