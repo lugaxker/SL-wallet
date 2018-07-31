@@ -11,6 +11,7 @@ class Constants:
     CASH_P2SH = 0x08 >> 3
     
     FEE_RATE = 1 # in sat per byte (sat/B)
+    DUST_THRESHOLD = 546 * FEE_RATE
     
     @classmethod
     def set_mainnet(self):
@@ -24,6 +25,8 @@ class Constants:
         self.XPUB_HEADER = 0x0488b21e
         
         self.BIP44_TYPE = 0x91
+        
+        self.SEQUENCE_NUMBER = 0xffffffff - 1
         
         self.NETWORK_MAGIC = 0xe8f3e1e3
         self.DEFAULT_PORT = 8333
