@@ -270,7 +270,6 @@ class Network(threading.Thread):
         self.sent_version = True
         
     def recv_version(self, payload):
-        print("FUNC recv_version")
         if len(payload) < 20:
             self.state = 'dead'
             return
@@ -296,12 +295,10 @@ class Network(threading.Thread):
         if not self.sent_version:
             self.send_version()
         
-        print(" peer_verack", self.peer_verack)
         if self.peer_verack == 2:
             self.handshake = True
         
     def send_verack(self):
-        print("send verack")
         self.outgoing_data_queue.append( wrap_network_message("verack", bytes()) )
     
     def recv_verack(self, payload):
@@ -332,8 +329,11 @@ class Network(threading.Thread):
     def recv_sendheaders(self, payload):
         pass
     
-    def send_tx(self, tx):
-        self.outgoing_data_queue.append( wrap_network_message("tx", tx) )
+    def send_tx(self, payload):
+        self.outgoing_data_queue.append( wrap_network_message("tx", payload) )
+    
+    def recv_tx(self, payload):
+        pass
         
         
         
