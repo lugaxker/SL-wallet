@@ -6,6 +6,8 @@ from address import Address
 from script import *
 from transaction import Transaction
 
+from constants import Constants
+
 if __name__ == '__main__':
     
     import sys
@@ -44,11 +46,24 @@ if __name__ == '__main__':
     prevout_value = 80000 # previous output value
     locktime = 537937
     
-    # Creation of the transaction
+    # Creation of the transaction    
+    txin = {}
+    txin['address'] = Address.from_pubkey( bytes.fromhex( pubkey1.to_ser(strtype=True) ) )
+    txin['txid'] = prevout_txid
+    txin['index'] = prevout_index
+    txin['value'] = prevout_value
+    txin['sequence'] = Constants.SEQUENCE_NUMBER
+    txin['pubkeys'] = [ pubkey1.to_ser(strtype=True) ]
+    txin['nsigs'] = 1
     
-    tx1 = Transaction.minimal_transaction( [ pubkey1.to_ser(strtype=True) ], 1, output_address, prevout_txid, prevout_index, prevout_value, locktime)
-    tx1.compute_fee()
-    tx1.sign([[prvkey1]]) # signature 
+    tx1 = Transaction.from_inputs( [txin], locktime )
+    
+    txsize = ( tx1.estimate_size() + 32 
+             + 2 * (Address.from_string( output_address ).kind == Constants.CASH_P2PKH) )
+    fee = Constants.FEE_RATE * txsize 
+    tx1.add_output( {'address': Address.from_string( output_address ), 'value': prevout_value - fee} )
+    
+    tx1.sign([prvkey1]) # signature 
     tx1.serialize() # computation of raw transaction
     
     
@@ -75,10 +90,25 @@ if __name__ == '__main__':
     prevout_value = 79810
     locktime = 538106
     
-    tx2 = Transaction.minimal_transaction([pk.hex() for pk in pubkeys], nsigs, output_address, prevout_txid, prevout_index, prevout_value, locktime)
+    txin = {}
+    txin['address'] = p2sh_addr
+    txin['txid'] = prevout_txid
+    txin['index'] = prevout_index
+    txin['value'] = prevout_value
+    txin['sequence'] = Constants.SEQUENCE_NUMBER
+    txin['pubkeys'] = [pk.hex() for pk in pubkeys]
+    txin['nsigs'] = nsigs
     
-    tx2.compute_fee()
-    prvkeys = [[ PrivateKey.from_wif( wifkeys_multisig[2] ), PrivateKey.from_wif( wifkeys_multisig[0] ) ]]
+    tx2 = Transaction.from_inputs( [txin], locktime )
+    
+    txsize = ( tx2.estimate_size() + 32 
+             + 2 * (Address.from_string( output_address ).kind == Constants.CASH_P2PKH) )
+    
+    fee = Constants.FEE_RATE * txsize 
+    
+    tx2.add_output( {'address': Address.from_string( output_address ), 'value': prevout_value - fee} )
+    
+    prvkeys = [ [PrivateKey.from_wif( wifkeys_multisig[2] ), PrivateKey.from_wif( wifkeys_multisig[0] )] ]
     tx2.sign(prvkeys)  
     tx2.serialize()
     

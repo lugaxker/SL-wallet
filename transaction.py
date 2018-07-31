@@ -7,7 +7,7 @@ from script import *
 
 from constants import *
 
-SEQUENCE_NUMBER = 0xffffffff - 1
+DEFAULT_SEQUENCE_NUMBER = 0xffffffff - 1
 BCH_SIGHASH_TYPE = 0x41
 
 def var_int(i):
@@ -52,9 +52,10 @@ class TransactionError(Exception):
     '''Exception used for Transaction errors.'''
 
 class Transaction:
-    ''' Transaction. '''
+    ''' Transaction. 
+    input . '''
     
-    def __init__(self, txins = None, txouts = None, locktime = 0):
+    def __init__(self, txins = [], txouts = [], locktime = 0):
         self._inputs = txins
         self._outputs = txouts
         self.version = 1 # version 2 transactions exist
@@ -62,41 +63,28 @@ class Transaction:
         self.hashtype = BCH_SIGHASH_TYPE # hardcoded signature hashtype
         
         self.iscomplete = False
-        
+    
     @classmethod
-    def minimal_transaction(self, pubkeys, nsigs, output_address, prevout_txid, prevout_index, prevout_value, locktime):
-        ''' Minimal transaction: one-input-one-output transaction. '''
-        txin = {}
-        txout = {}
-
-        # Input address
-        if nsigs == 1:
-            txin['address'] = Address.from_pubkey( bytes.fromhex( pubkeys[0] ) )
-        else:
-            redeem_script = multisig_locking_script( [bytes.fromhex(pk) for pk in pubkeys], nsigs)
-            txin['address'] = Address.from_script( redeem_script )
-        txin['sequence'] = SEQUENCE_NUMBER
-        
-        txin['txid'] = prevout_txid
-        txin['index'] = prevout_index
-        txin['value'] = prevout_value
-        
-        txin['pubkeys'] = pubkeys
-        txin['nsigs'] = nsigs
-
-        # Output address
-        txout['address'] = Address.from_string( output_address )
-        txout['value'] = 0 # 
-        
-        return self([txin], [txout], locktime)
+    def from_inputs(self, txins, locktime=0):
+        return self( txins, [], locktime )
+    
+    @classmethod
+    def from_outputs(self, txouts, locktime=0):
+        return self( [], txouts, locktime )
+    
+    def add_input(self, txin):
+        self._outputs.append( txin )
+    
+    def add_output(self, txout):
+        self._outputs.append( txout )
     
     def get_preimage_script(self, txin):
         ''' Returns the previous locking script for a P2PKH address,
         and the redeem script for a P2SH address (only multisig for now). '''
         input_addr = txin['address']
-        if input_addr.kind == Address.ADDR_P2PKH:
+        if input_addr.kind == Constants.CASH_P2PKH:
             return locking_script( input_addr )
-        elif input_addr.kind == Address.ADDR_P2SH:
+        elif input_addr.kind == Constants.CASH_P2SH:
             pubkeys = [bytes.fromhex(pk) for pk in txin['pubkeys']]
             return multisig_locking_script( pubkeys, txin['nsigs'] )
         return None
@@ -168,12 +156,16 @@ class Transaction:
         
     def sign(self, private_keys):
         '''Signs the transaction. 
-        prvkeys (list of PrivateKey list)'''
+        prvkeys (list of PrivateKey items)'''
         for i, txin in enumerate(self._inputs):
-            prvkeys = private_keys[i]
-            assert( len(prvkeys) == txin['nsigs']) # Number of signatures required
             pubkeys = [bytes.fromhex(pubkey) for pubkey in txin['pubkeys']] # Public keys
-            if len(prvkeys) > 1: # Sorting of keys
+            prvkeys = private_keys[i] 
+            if isinstance( prvkeys, PrivateKey):
+                assert txin['nsigs'] == 1
+                prvkeys = [ prvkeys ]
+            elif isinstance( prvkeys, list ):
+                assert len( prvkeys ) == txin['nsigs']
+                # Sorting keys
                 sorted_prvkeys = []
                 for prvkey in prvkeys:
                     pubkey = PublicKey.from_prvkey( prvkey ).to_ser()
@@ -181,10 +173,12 @@ class Transaction:
                     sorted_prvkeys += [(pubkeys.index(pubkey), prvkey)]
                 sorted_prvkeys.sort(key = lambda x: x[0])
                 prvkeys = [k[1] for k in sorted_prvkeys]
+            else:
+                raise TransactionError('wrong type for private keys')
             prehash = dsha256( self.serialize_preimage(txin) )
             hashtype = bytes( [self.hashtype & 0xff] ).hex()
             self._inputs[i]['signatures'] = [ prvkey.sign( prehash, strtype=True ) + hashtype for prvkey in prvkeys ]
-            
+          
     def estimate_input_size(self, txin):
         sz_prevout_txid = 32
         sz_prevout_index = 4
@@ -218,9 +212,9 @@ class Transaction:
     
     def estimate_output_size(self, txout):
         sz_amount = 8
-        if txout['address'].kind == Address.ADDR_P2PKH:
+        if txout['address'].kind == Constants.CASH_P2PKH:
             sz_locking_script = 25
-        elif txout['address'].kind == Address.ADDR_P2SH:
+        elif txout['address'].kind == Constants.CASH_P2SH:
             sz_locking_script = 23
         sz_length_locking_script = var_int_size(sz_locking_script)
         return sz_amount + sz_length_locking_script + sz_locking_script
@@ -234,12 +228,12 @@ class Transaction:
         return (sz_version + var_int_size(sz_inputs) + sz_inputs
                 + var_int_size(sz_outputs) + sz_outputs + sz_locktime)
     
-    def compute_fee(self):
-        # tx management has to be outside (e.g. in the wallet file)
-        # change address output, etc.
-        estimated_size = self.estimate_size()
-        # for now, fee is prelevated on first input
-        self._outputs[0]['value'] = self._inputs[0]['value'] - int( estimated_size * Constants.FEE_RATE )
+    #def compute_fee(self):
+        ## tx management has to be outside (e.g. in the wallet file)
+        ## change address output, etc.
+        #estimated_size = self.estimate_size()
+        ## for now, fee is prelevated on first input
+        #self._outputs[0]['value'] = self._inputs[0]['value'] - int( estimated_size * Constants.FEE_RATE )
         
     def input_value(self):
         return sum( txin['value'] for txin in self._inputs )

@@ -15,7 +15,8 @@ FORKID = 0x00
 BCH_SIGHASH_TYPE = 0x41
 
 TRANSACTION_VERSION_1 = 1 # version 2 transactions exist
-SEQUENCE_NUMBER = 0xffffffff - 1
+
+from constants import Constants
 
 def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid, prevout_index, prevout_value ):
     ''' Construct a Bitcoin Cash one-input / one-output transaction.
@@ -32,16 +33,28 @@ def construct_simple_transaction( wifkey, output_address, locktime, prevout_txid
     publicKey = PublicKey.from_prvkey( prvkey ).to_ser()
     input_address = Address.from_pubkey( publicKey ).to_string()
     
-    # Creation of the transaction
-    tx = Transaction.minimal_transaction([publicKey.hex()], 1, output_address, prevout_txid, prevout_index, prevout_value, locktime)
+    # Creation of the transaction   
+    txin = {}
+    txin['address'] = Address.from_string( input_address )
+    txin['txid'] = prevout_txid
+    txin['index'] = prevout_index
+    txin['value'] = prevout_value
+    txin['sequence'] = Constants.SEQUENCE_NUMBER
+    txin['pubkeys'] = [publicKey.hex()]
+    txin['nsigs'] = 1
     
-    # Computation of fee
-    tx.compute_fee()
+    tx = Transaction.from_inputs( [txin], locktime )
     
-    # Signing
-    tx.sign([[prvkey]])
+    txsize = ( tx.estimate_size() + 32 
+             + 2 * (Address.from_string( output_address ).kind == Constants.CASH_P2PKH) )
+    fee = Constants.FEE_RATE * txsize 
+    txout = {}
+    txout['address'] = Address.from_string( output_address )
+    txout['value'] = prevout_value - fee
+    tx.add_output( txout )
     
-    # Computation of raw transaction
+    prvkeys = [ prvkey ]
+    tx.sign(prvkeys)  
     rawtx = tx.serialize()
 
     fee = tx.get_fee()
@@ -88,8 +101,6 @@ if __name__ == '__main__':
     prevout_index = 0
     prevout_value = 41424 # previous output value
     
-    
-    
     # Construction of transaction payload
     tx, txid, fee = construct_simple_transaction( wifkey, output_address, locktime, prevout_txid, prevout_index, prevout_value )
     print("RAW TRANSACTION")
@@ -100,13 +111,7 @@ if __name__ == '__main__':
     print("Transaction fees (sat)", fee)
     print()
     
-    ## Connexion to Bitcoin Cash network
-    #sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-       
-    #print("connecting to node...")
-    #sock.connect((host,port))
-    #print("ok")
-    
+    # Connexion to Bitcoin Cash network
     host = "46.28.204.198"
     port = 8333
     peer_address = (host, port)
@@ -115,27 +120,5 @@ if __name__ == '__main__':
     print()
     network_manager = Network(peer_address, last_block)
     network_manager.start()
-    #network_manager.run()
     time.sleep(5)
     network_manager.shutdown()
-    #net.send_version( last_block )
-    #print("Version message", ver_msg.hex())
-    #sock.send( ver_msg )
-    
-    #m = sock.recv( 1024 )
-    #print("receive", m.hex())
-    
-    #m = sock.recv( 1024 )
-    #print("receive", m.hex())
-    
-    # Transaction message
-    #tx_msg = net.send_tx(tx)
-    #print("Transaction message", tx_msg.hex())
-    
-    #sock.send( tx_msg )
-    
-    #m = sock.recv( 1024 )
-    #print("receive", m.hex())
-    
-    #sock.close()
-    #print("end") 
