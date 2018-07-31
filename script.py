@@ -4,6 +4,8 @@
 from crypto import hash160
 from address import Address
 
+from constants import Constants
+
 class ScriptError(Exception):
     '''Exception used for Script errors.'''
 
@@ -72,11 +74,11 @@ def multisig_unlocking_script(sigs):
 
 def locking_script( addr ):
     assert isinstance( addr, Address )
-    if addr.kind == Address.ADDR_P2PKH:
+    if addr.kind == Constants.CASH_P2PKH:
         return (bytes([OP_DUP, OP_HASH160]) + 
             push_data( addr.h ) + 
             bytes([OP_EQUALVERIFY, OP_CHECKSIG]))
-    elif addr.kind == Address.ADDR_P2SH:
+    elif addr.kind == Constants.CASH_P2SH:
         return (bytes([OP_HASH160]) + push_data( addr.h ) 
                 + bytes([OP_EQUAL]))
     return None
@@ -85,12 +87,12 @@ def unlocking_script( addr, pubkeys, signatures ):
     assert isinstance( addr, Address )
     assert isinstance( pubkeys[0], (bytes, bytearray)  )
     assert isinstance( signatures[0], (bytes, bytearray) ) 
-    if addr.kind == Address.ADDR_P2PKH:
+    if addr.kind == Constants.CASH_P2PKH:
         sig = signatures[0]
         pubkey = pubkeys[0]
         assert addr.h == hash160(pubkey) 
         return (push_data( sig ) + push_data( pubkey ))
-    elif addr.kind == Address.ADDR_P2SH:
+    elif addr.kind == Constants.CASH_P2SH:
         redeemScript = multisig_locking_script(pubkeys, len(signatures))
         assert addr.h == hash160(redeemScript) 
         return (multisig_unlocking_script(signatures) 
