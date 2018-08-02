@@ -210,6 +210,12 @@ class Address:
         assert len(h) == 20
         self.h = h
         
+    def __eq__(self, other):
+        return ( self.kind == other.kind ) & ( self.h == other.h )
+
+    def __ne__(self, other):
+        return ( self.kind != other.kind ) | ( self.h != other.h )
+
     @classmethod
     def from_cash_string(self, string):
         '''Initialize from a cash address string.'''
