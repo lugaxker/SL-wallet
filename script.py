@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from crypto import hash160
+from crypto import (hash160, PublicKey)
 from address import Address
 
 from constants import Constants
@@ -58,6 +58,19 @@ def push_data(data):
     else:
         raise ValueError("Data is too long")
     
+def push_data_size(n):
+    OP_PUSHDATA1 = 0x4c
+    if n < OP_PUSHDATA1:
+        return 1
+    elif n <= 0xff:
+        return 2
+    elif n <= 0xffff:
+        return 3
+    elif n <= 0xffffffff:
+        return 5
+    else:
+        raise ValueError("Data is too long")
+    
 def multisig_locking_script(pubkeys, m):
     ''' Returns m-of-n multisig locking script (also called redeem script). '''
     n = len(pubkeys)
@@ -65,7 +78,7 @@ def multisig_locking_script(pubkeys, m):
         raise ScriptError('{:d}-of-{:d} multisig script not possible'.format(m, n))
     OP_m = OP_1 + m - 1
     OP_n = OP_1 + n - 1
-    serpubkeys = b''.join(push_data(pubkey) for pubkey in pubkeys)
+    serpubkeys = bytes().join( push_data( pubkey.to_ser() ) for pubkey in pubkeys)
     return ( bytes([OP_m]) + serpubkeys + bytes([OP_n, OP_CHECKMULTISIG]) )
 
 def multisig_unlocking_script(sigs):
@@ -85,19 +98,25 @@ def locking_script( addr ):
 
 def unlocking_script( addr, pubkeys, signatures ):
     assert isinstance( addr, Address )
-    assert isinstance( pubkeys[0], (bytes, bytearray)  )
+    assert isinstance( pubkeys[0], PublicKey )
     assert isinstance( signatures[0], (bytes, bytearray) ) 
     if addr.kind == Constants.CASH_P2PKH:
         sig = signatures[0]
         pubkey = pubkeys[0]
-        assert addr.h == hash160(pubkey) 
-        return (push_data( sig ) + push_data( pubkey ))
+        assert addr == Address.from_pubkey( pubkey )
+        return (push_data( sig ) + push_data( pubkey.to_ser() ))
     elif addr.kind == Constants.CASH_P2SH:
         redeemScript = multisig_locking_script(pubkeys, len(signatures))
         assert addr.h == hash160(redeemScript) 
         return (multisig_unlocking_script(signatures) 
                 + push_data( redeemScript ))
 
+# TODO: P2PK, P2PKH, P2SH
+def parse_unlocking_script( script ):
+    pass
+
+def parse_locking_script( script ):
+    pass
 
     
     

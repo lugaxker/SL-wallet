@@ -5,48 +5,12 @@ from crypto import (dsha256, PrivateKey, PublicKey)
 from address import *
 from script import *
 
+from util import (read_bytes, var_int, read_var_int, var_int_size)
+
 from constants import *
 
 DEFAULT_SEQUENCE_NUMBER = 0xffffffff - 1
 BCH_SIGHASH_TYPE = 0x41
-
-def var_int(i):
-    '''Returns variable length integer used in the transaction payload.'''
-    if i < 0xfd:
-        return bytes([i])
-    elif i <= 0xffff:
-        return bytes([0xfd]) + i.to_bytes(2, 'little')
-    elif i <= 0xffffffff:
-        return bytes([0xfe]) + i.to_bytes(4, 'little')
-    elif i <= 0xffffffffffffffff:
-        return bytes([0xff]) + i.to_bytes(8, 'little')
-    else:
-        raise ValueError("Integer is too big")
-    
-def push_data_size(n):
-    OP_PUSHDATA1 = 0x4c
-    if n < OP_PUSHDATA1:
-        return 1
-    elif n <= 0xff:
-        return 2
-    elif n <= 0xffff:
-        return 3
-    elif n <= 0xffffffff:
-        return 5
-    else:
-        raise ValueError("Data is too long")
-
-def var_int_size(i):
-    if i < 0xfd:
-        return 1
-    elif i <= 0xffff:
-        return 3
-    elif i <= 0xffffffff:
-        return 5
-    elif i <= 0xffffffffffffffff:
-        return 9
-    else:
-        raise ValueError("Integer is too big")
 
 class TransactionError(Exception):
     '''Exception used for Transaction errors.'''
@@ -55,10 +19,10 @@ class Transaction:
     ''' Transaction. 
     input . '''
     
-    def __init__(self, txins = [], txouts = [], locktime = 0):
+    def __init__(self, version = 1, txins = [], txouts = [], locktime = 0):
         self._inputs = txins
         self._outputs = txouts
-        self.version = 1 # version 2 transactions exist
+        self.version = version
         self.locktime = locktime
         self.hashtype = BCH_SIGHASH_TYPE # hardcoded signature hashtype
         
@@ -66,14 +30,51 @@ class Transaction:
     
     @classmethod
     def from_inputs(self, txins, locktime=0):
-        return self( txins, [], locktime )
+        return self( 1, txins, [], locktime )
     
     @classmethod
     def from_outputs(self, txouts, locktime=0):
-        return self( [], txouts, locktime )
+        return self( 1, [], txouts, locktime )
+    
+    # TODO: parse scripts
+    @classmethod
+    def deserialize(self, raw):
+        assert isinstance( raw, bytes )
+        version, raw = read_bytes(raw, 4, int, 'little')
+        
+        input_count, raw = read_var_int(raw)
+        txins = []
+        for i in range(input_count):
+            txin = {}
+            txin['txid'], raw = read_bytes(raw, 32, hex, 'little')
+            txin['index'], raw = read_bytes(raw, 4, int, 'little')
+            scriptsize, raw = read_var_int( raw )
+            unlockingScript, raw = read_bytes(raw, scriptsize, bytes, 'big')
+            if (txin['txid'] == "00"*32) & (txin['index'] == 0xffffffff):
+                # Coinbase input
+                txin['type'] = "coinbase"
+            else:
+                # TODO: parse unlocking script (type (p2pk, p2pkh, p2sh), pubkeys, signatures, address?)
+                pass
+            txin['sequence'], raw = read_bytes(raw, 4, int, 'little')
+            txins.append( txin )
+        
+        output_count, raw = read_var_int(raw)
+        txouts = []
+        for i in range(output_count):
+            txout = {}
+            txout['value'], raw = read_bytes(raw, 8, int, 'little')
+            scriptsize, raw = read_var_int( raw )
+            lockingScript, raw = read_bytes(raw, scriptsize, bytes, 'big')
+            # TODO: parse locking script (address)
+            txouts.append( txout )
+        
+        locktime, raw = read_bytes(raw, 4, int, 'little')
+        
+        return self(1, [],[])
     
     def add_input(self, txin):
-        self._outputs.append( txin )
+        self._inputs.append( txin )
     
     def add_output(self, txout):
         self._outputs.append( txout )
@@ -85,8 +86,7 @@ class Transaction:
         if input_addr.kind == Constants.CASH_P2PKH:
             return locking_script( input_addr )
         elif input_addr.kind == Constants.CASH_P2SH:
-            pubkeys = [bytes.fromhex(pk) for pk in txin['pubkeys']]
-            return multisig_locking_script( pubkeys, txin['nsigs'] )
+            return multisig_locking_script( txin['pubkeys'], txin['nsigs'] )
         return None
     
     def serialize_outpoint(self, txin):
@@ -98,9 +98,8 @@ class Transaction:
         ''' Serializes an input: outpoint (previous output tx id + previous output index)
         + unlocking script (scriptSig) with its size + sequence number. '''
         outpoint  = self.serialize_outpoint(txin)
-        pubkeys = [bytes.fromhex(pk) for pk in txin['pubkeys']]
         signatures = [bytes.fromhex(sig) for sig in txin['signatures']]
-        unlockingScript = unlocking_script(txin['address'], pubkeys, signatures)
+        unlockingScript = unlocking_script(txin['address'], txin['pubkeys'], signatures)
         unlockingScriptSize = var_int( len( unlockingScript ) )
         nSequence = txin['sequence'].to_bytes(4,'little')
         return outpoint + unlockingScriptSize + unlockingScript + nSequence
@@ -158,7 +157,6 @@ class Transaction:
         '''Signs the transaction. 
         prvkeys (list of PrivateKey items)'''
         for i, txin in enumerate(self._inputs):
-            pubkeys = [bytes.fromhex(pubkey) for pubkey in txin['pubkeys']] # Public keys
             prvkeys = private_keys[i] 
             if isinstance( prvkeys, PrivateKey):
                 assert txin['nsigs'] == 1
@@ -168,9 +166,9 @@ class Transaction:
                 # Sorting keys
                 sorted_prvkeys = []
                 for prvkey in prvkeys:
-                    pubkey = PublicKey.from_prvkey( prvkey ).to_ser()
-                    assert(pubkey in pubkeys)
-                    sorted_prvkeys += [(pubkeys.index(pubkey), prvkey)]
+                    pubkey = PublicKey.from_prvkey( prvkey )
+                    assert(pubkey in txin['pubkeys'])
+                    sorted_prvkeys += [(txin['pubkeys'].index(pubkey), prvkey)]
                 sorted_prvkeys.sort(key = lambda x: x[0])
                 prvkeys = [k[1] for k in sorted_prvkeys]
             else:
@@ -184,8 +182,7 @@ class Transaction:
         sz_prevout_index = 4
         if txin['address'].kind == Constants.CASH_P2PKH:
             sz_sig = 0x48
-            pubkey_prefix = int( txin['pubkeys'][0][:2] )
-            if pubkey_prefix in (0x02, 0x03):
+            if txin['pubkeys'][0].is_compressed():
                 sz_pubkey = 0x21
             else:
                 sz_pubkey = 0x41
@@ -194,11 +191,9 @@ class Transaction:
         elif txin['address'].kind == Constants.CASH_P2SH:
             # only multisig for now
             sz_signatures = 1 + txin['nsigs'] * (1 + 0x48)
-            pubkey_prefixes = [int(pk[:2]) for pk in txin['pubkeys']]
             sz_pubkeys = 0
-            for prefix in pubkey_prefixes:
-                assert prefix in (0x02, 0x03, 0x04)
-                if prefix in (0x02, 0x03):
+            for pubkey in txin['pubkeys']:
+                if pubkey.is_compressed():
                     sz_pubkeys += 1 + 0x21
                 else:
                     sz_pubkeys += 1 + 0x41
@@ -227,13 +222,6 @@ class Transaction:
         
         return (sz_version + var_int_size(sz_inputs) + sz_inputs
                 + var_int_size(sz_outputs) + sz_outputs + sz_locktime)
-    
-    #def compute_fee(self):
-        ## tx management has to be outside (e.g. in the wallet file)
-        ## change address output, etc.
-        #estimated_size = self.estimate_size()
-        ## for now, fee is prelevated on first input
-        #self._outputs[0]['value'] = self._inputs[0]['value'] - int( estimated_size * Constants.FEE_RATE )
         
     def input_value(self):
         return sum( txin['value'] for txin in self._inputs )

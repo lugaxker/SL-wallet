@@ -33,7 +33,7 @@ def serialize_network_address(ip_addr, services, with_timestamp=True):
     else:
         return serv + address + port
 
-def unserialize_network_address( data, with_timestamp=True ):
+def deserialize_network_address( data, with_timestamp=True ):
     if with_timestamp and len(data) != 30:
         raise NetworkError('Network address should be 30-byte long') 
     elif not with_timestamp and len(data) != 26:
@@ -278,8 +278,8 @@ class Network(threading.Thread):
             self.peer_version = int.from_bytes( payload[:4], 'little')
             self.peer_services = int.from_bytes( payload[4:12], 'little')
             self.peer_time = int.from_bytes( payload[12:20], 'little')
-            my_address, my_services  = unserialize_network_address(payload[20:46], with_timestamp=False)
-            peer_address, peer_services = unserialize_network_address(payload[46:72], with_timestamp=False)
+            my_address, my_services  = deserialize_network_address(payload[20:46], with_timestamp=False)
+            peer_address, peer_services = deserialize_network_address(payload[46:72], with_timestamp=False)
             nonce = int.from_bytes( payload[72:80], 'little')
             end_user_agent = 81 + payload[80]
             self.peer_user_agent = payload[81:end_user_agent]

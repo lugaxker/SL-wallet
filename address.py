@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 
 from base58 import *
-from crypto import hash160
+from crypto import (hash160, PublicKey)
 
 from constants import *
 
@@ -250,14 +250,6 @@ class Address:
             return self.from_cash_string(string)
         else:
             return self.from_legacy_string(string)
-        
-    @classmethod
-    def from_pubkey(self, pubkey):
-        '''Returns a P2PKH address from a serialized public key.  The public
-        key can be bytes or a hex string.'''
-        if isinstance(pubkey, str):
-            pubkey = bytes.fromhex(pubkey)
-        return self(hash160(pubkey), Constants.CASH_P2PKH)
     
     @classmethod
     def from_pubkey_hash(self, pubkey_hash):
@@ -265,15 +257,28 @@ class Address:
         return self(pubkey_hash, Constants.CASH_P2PKH)
     
     @classmethod
-    def from_script(self, script):
-        '''Initializes from a redeem script.'''
-        return self(hash160(script), Constants.CASH_P2SH)
-    
+    def from_pubkey(self, pubkey):
+        '''Returns a P2PKH address from a public key. The public
+        key can be serialized as a bytes or a hex string.'''
+        if isinstance(pubkey, PublicKey):
+            return self.from_pubkey_hash( hash160( pubkey.to_ser() ) )
+        elif isinstance(pubkey, bytes): 
+            return self.from_pubkey_hash( hash160( pubkey ) )
+        elif isinstance(pubkey, hex):
+            return self.from_pubkey_hash( hash160( bytes.fromhex(pubkey) ) )
+        else:
+            raise AddressError("wrong type of public key")
+
     @classmethod
     def from_script_hash(self, script_hash):
         '''Initializes from a redeem script hash.'''
         return self(script_hash, Constants.CASH_P2SH)
     
+    @classmethod
+    def from_script(self, script):
+        '''Initializes from a redeem script.'''
+        return self.from_script_hash(hash160(script))
+
     def to_cash(self):
         return CashAddr.encode(Constants.CASH_HRP, self.kind, self.h)
     

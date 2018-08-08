@@ -89,12 +89,24 @@ class PrivateKey:
         assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_der)        
         return ( signature.hex() if strtype else signature )
     
+    def __str__(self):
+        return self.to_wif()
+
+    def __repr__(self):
+        return '<PrivateKey {}>'.format(self.to_wif())
+    
 class PublicKey:
     
     def __init__(self, prefix, x, y=None):
         self.x = x
         self.y = y
-        self.prefix = prefix        
+        self.prefix = prefix
+        
+    def __eq__(self, other):
+        return ( self.prefix == other.prefix ) & ( self.x == other.x ) & ( self.y == other.y )
+
+    def __ne__(self, other):
+        return ( self.prefix != other.prefix ) | ( self.x != other.x ) | ( self.y != other.y )
     
     @classmethod
     def from_prvkey(self, key, compressed=True):
@@ -171,6 +183,15 @@ class PublicKey:
         if self.prefix in (0x02, 0x03): 
             self.y = self._getyfromx(self.x, ecdsa.ecdsa.curve_secp256k1, self.prefix == 0x03)
             self.prefix = 0x04
+            
+    def is_compressed(self):
+        return self.prefix in (0x02,0x03)
+            
+    def __str__(self):
+        return self.to_ser(strtype=True)
+
+    def __repr__(self):
+        return '<PublicKey {}>'.format(self.to_ser(strtype=True))
 
     
 # Key Derivation
