@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from util import get_price
+
 from address import Address
 from network import Network
 from wallet import Wallet
@@ -22,6 +24,7 @@ class SlwWindow(QMainWindow):
         balanceLabel = QLabel('Balance')
         balanceLabel.setAlignment(Qt.AlignCenter)
         self.balanceDisplay = QLabel('0.00000000 BCH')
+        self.priceDisplay = QLabel('-.-- EUR')
         
         refreshButton = QPushButton(QIcon('icons/refresh.png'),"")
         
@@ -61,7 +64,8 @@ class SlwWindow(QMainWindow):
         
         grid.addWidget(balanceLabel, 0, 0)
         grid.addWidget(self.balanceDisplay, 0, 1, 1, 1)
-        grid.addWidget(refreshButton, 0, 2)
+        grid.addWidget(self.priceDisplay, 0, 2, 1, 1)
+        grid.addWidget(refreshButton, 0, 3)
         grid.addWidget(recvLabel, 1, 0)
         grid.addWidget(self.recvEdit, 1, 1, 1, 4)
         grid.addWidget(genNewAddrButton, 1, 5)
@@ -89,6 +93,9 @@ class SlwWindow(QMainWindow):
         self.wallet = Wallet.load( "wallet.json" )
         self.set_balance()
         self.set_recv_addr()
+        self.set_price()
+        
+        self.wallet.start_network()
         
     def set_recv_addr(self):
         try:
@@ -114,13 +121,23 @@ class SlwWindow(QMainWindow):
         self.wallet.update_utxos()
         self.set_balance()
     
+    # TODO
+    def set_price(self):
+        try:
+            self.price = get_price()
+        except:
+            self.price = None
+        if self.price:
+            value = self.price * self.wallet.get_balance() / 1e8
+            self.priceDisplay.setText( "{:.2f} EUR".format( value ) )
+    
     def set_max_amount(self):
         try:
             max_amount = self.wallet.compute_max_amount()
         except:
             max_amount = None
         if max_amount:
-            self.amountEdit.setText( "{:.8f}".format( max_amount / 1e8 ) )
+            self.amountEdit.setText( "{:.8f}".format( max_amount / 1e8 ) )        
             
     def send_transaction(self):
         try:
@@ -130,7 +147,28 @@ class SlwWindow(QMainWindow):
             output_address = None
             amount = None
         if (output_address is not None) & (amount is not None):
-            self.wallet.make_standard_transaction(output_address, amount)
+            try:
+                rawtx, txid, fee = self.wallet.make_standard_transaction(output_address, amount)
+            except:
+                rawtx = None
+            if rawtx:
+                bch_amount = amount / 1e8
+                bch_fee = fee / 1e8
+                eur_amount = self.price * bch_amount
+                eur_fee = self.price * bch_fee
+                
+                msg = "Do you want to send this transaction?\n\nOutput address: {}\nAmount: {:.8f} BCH ({:.2f} €)\nFee: {:.8f} BCH ({:.2f} €)".format(output_address.to_cash(), bch_amount, eur_amount, bch_fee, eur_fee)
+                msgBox = QMessageBox.question(self, "Transaction Confirmation", msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                
+                if msgBox == QMessageBox.Yes:
+                        
+                    self.wallet.network.send_tx( rawtx )
+                    
+                    if self.wallet.network.state == 'connected':
+                        self.wallet.add_new_transaction( rawtx, txid )
+                        print("transaction sent")
+                else:
+                    print("transaction not sent")
             
             
     def show_mnemonic(self):
@@ -147,6 +185,7 @@ class SlwWindow(QMainWindow):
         
     def closeEvent(self, event):
         self.wallet.save()
+        self.wallet.stop_network()
         
     
     

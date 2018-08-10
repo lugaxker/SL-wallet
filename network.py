@@ -4,8 +4,11 @@
 import time
 
 import collections
+import json
 import socket
 import threading
+
+from util import (read_bytes, read_var_int)
 
 from crypto import dsha256, getrandrange
 from constants import *
@@ -40,18 +43,17 @@ def deserialize_network_address( data, with_timestamp=True ):
         raise NetworkError('Network address should be 26-byte long')
     
     if with_timestamp:
-        timestamp = int.from_bytes( data[:4], 'little')
-        data = data[4:]
+        timestamp, data = read_bytes(data, 4, int, 'little')
     
-    services = int.from_bytes( data[:8] , 'little')
-    address = data[8:24]
+    services, data = read_bytes(data, 8, int, 'little')
+    address, data = read_bytes(data, 16, bytes, 'big')
     if address[0:-4] == bytes([0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff]):
         # IPv4
         host = ".".join("{}".format(v) for v in address[-4:])
     else:
         # IPv6
         host = ""
-    port = int.from_bytes( data[24:26] , 'big')
+    port, data = read_bytes(data, 2, int, 'big')
     if with_timestamp:
         return ( (host, port), services, timestamp )
     else:
@@ -94,40 +96,6 @@ def unwrap_network_message( data ):
     
     return command, payload, length, leftover
 
-def version_message(recv_ip, recv_port, last_block):
-    ''' Version message. '''
-    
-    # Protocol Version
-    version = Constants.PROTOCOL_VERSION.to_bytes(4, 'little')
-
-    # Services
-    services = SPV_SERVICES.to_bytes(8, 'little')
-    
-    # Timestamp
-    timestamp = int( time.time() ).to_bytes(8, 'little')
-    
-    # Receiving address
-    addr_recv  = SPV_SERVICES.to_bytes(8, 'little')
-    addr_recv += DEFAULT_IPV6_ADDRESS.to_bytes(16,'big')
-    addr_recv += Constants.DEFAULT_PORT.to_bytes(2,'big')
-    
-    serialize_network_address
-    
-    # Transmitting address
-    addr_trans  = SPV_SERVICES.to_bytes(8, 'little')
-    addr_trans += DEFAULT_IPV6_ADDRESS.to_bytes(16,'big')
-    addr_trans += Constants.DEFAULT_PORT.to_bytes(2,'big')
-    
-    # Nonce
-    nonce = getrandrange( 1<<64 ).to_bytes(8, 'little')
-    
-    user_agent = bytes(0)
-    user_agent_bytes = bytes([len(user_agent)])
-    start_height = last_block.to_bytes(4, 'little')
-    relay = bytes([RELAY])
-    
-    return (version + services + timestamp + addr_recv + addr_trans + nonce + 
-            user_agent_bytes + start_height + relay)
 
 class Network(threading.Thread):
     ''' Network single-peer manager. '''
@@ -136,13 +104,23 @@ class Network(threading.Thread):
     TX_RELAY = False
     MAX_MESSAGE_SIZE = 1 << 20 # 1 MiB
     
-    def __init__(self, peer_address, last_block, user_agent="slwallet"):
+    def __init__(self, block_height, user_agent="slwallet"):
         threading.Thread.__init__(self)
         self.user_agent = "/{}/".format(user_agent).replace(" ", ":")
-        assert peer_address[1] == Constants.DEFAULT_PORT
-        self.peer_address = peer_address
-        self.last_block = last_block
+        self.load_peer_list()
+        self.peer_address = self.peer_list[0]
+        assert self.peer_address[1] == Constants.DEFAULT_PORT
+        self.block_height = block_height
         self.socket = None
+        
+    def load_peer_list(self, filename="peers.json"):
+        with open(filename, 'r') as f:
+            peer_list = json.load(f)
+        self.peer_list = [tuple(peer) for peer in peer_list]
+        
+    def save_peer_list(self, filename="peers.json"):
+        with open(filename, 'w') as f:
+            json.dump(self.peer_list, f, ensure_ascii=False)
 
     def start(self):
         self.running = False
@@ -152,6 +130,7 @@ class Network(threading.Thread):
         
     def shutdown(self):
         self.running = False
+        self.save_peer_list()
     
     def run(self):
         self.state = 'init'
@@ -178,11 +157,10 @@ class Network(threading.Thread):
                     self.send_version()
                     
         elif self.state == 'connected':
-            if self.handshake:
-                print('handshake done')
             self.handle_outgoing_data()
             self.handle_incoming_data()
         elif self.state == 'dead':
+            print("dead")
             self.close_connexion()
             self.running = False
     
@@ -262,7 +240,7 @@ class Network(threading.Thread):
         nonce = getrandrange( 1 << 64 ).to_bytes(8, 'little')
         user_agent = self.user_agent.encode('ascii')
         user_agent_bytes = bytes([len(user_agent)])
-        start_height = self.last_block.to_bytes(4, 'little')
+        start_height = self.block_height.to_bytes(4, 'little')
         relay = bytes([self.TX_RELAY])
         payload = (version + services + timestamp + addr_recv + addr_trans + 
                    nonce + user_agent_bytes + user_agent + start_height + relay)
@@ -275,20 +253,26 @@ class Network(threading.Thread):
             return
         
         try:
-            self.peer_version = int.from_bytes( payload[:4], 'little')
-            self.peer_services = int.from_bytes( payload[4:12], 'little')
-            self.peer_time = int.from_bytes( payload[12:20], 'little')
-            my_address, my_services  = deserialize_network_address(payload[20:46], with_timestamp=False)
-            peer_address, peer_services = deserialize_network_address(payload[46:72], with_timestamp=False)
-            nonce = int.from_bytes( payload[72:80], 'little')
-            end_user_agent = 81 + payload[80]
-            self.peer_user_agent = payload[81:end_user_agent]
-            self.peer_last_block = int.from_bytes( payload[end_user_agent:end_user_agent+4], 'little' )
-            relay = payload[end_user_agent+4]
+            self.peer_version, payload = read_bytes(payload, 4, int, 'little')
+            self.peer_services, payload = read_bytes(payload, 8, int, 'little')
+            self.peer_time, payload = read_bytes(payload, 8, int, 'little')
+            my_network_address, payload = read_bytes(payload, 26, bytes, 'big')
+            my_address, my_services  = deserialize_network_address(my_network_address, with_timestamp=False)
+            peer_network_address, payload = read_bytes(payload, 26, bytes, 'big')
+            peer_address, peer_services  = deserialize_network_address(peer_network_address, with_timestamp=False)
+            nonce, payload = read_bytes(payload, 8, int, 'little')
+            peer_user_agent_size, payload = read_var_int(payload)
+            peer_user_agent, payload = read_bytes(payload, peer_user_agent_size, hex, 'big')
+            self.peer_block_height, payload = read_bytes(payload, 4, int, 'little')
+            relay, payload = read_bytes(payload, 1, int, 'little')
+            assert payload == bytes()
         except:
             self.state = 'dead'
             return
-
+        
+        if self.peer_block_height > self.block_height:
+            self.block_height = self.peer_block_height
+        
         self.send_verack()
         self.peer_verack += 1
 
@@ -297,6 +281,7 @@ class Network(threading.Thread):
         
         if self.peer_verack == 2:
             self.handshake = True
+            print("handshake done")
         
     def send_verack(self):
         self.outgoing_data_queue.append( wrap_network_message("verack", bytes()) )
@@ -306,6 +291,7 @@ class Network(threading.Thread):
         self.peer_verack += 1
         if self.peer_verack == 2:
             self.handshake = True
+            print("handshake done")
             
     def send_pong(self, payload):
         self.outgoing_data_queue.append( wrap_network_message("pong", payload) )
@@ -315,12 +301,21 @@ class Network(threading.Thread):
         self.send_pong(payload)
         
     def recv_addr(self, payload):
-        pass
+        count, payload = read_var_int(payload)
+        
+        for i in range(count):
+            data, payload = payload[:30], payload[30:]
+            address, services, timestamp = deserialize_network_address( data, with_timestamp=True)
+            if address not in self.peer_list:
+                self.peer_list.append( address )
     
     def recv_feefilter(self, payload):
         pass
     
     def recv_inv(self, payload):
+        pass
+    
+    def recv_reject(self, payload):
         pass
     
     def recv_sendcmpct(self, payload):

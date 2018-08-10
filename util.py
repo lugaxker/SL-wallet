@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+# Bytes
+
 def read_bytes( b, l, t, e ):
     if t == bytes:
         if e == 'big':
@@ -52,3 +54,18 @@ def var_int_size(i):
         return 9
     else:
         raise ValueError("Integer is too big")
+    
+# Price
+
+import json
+import urllib.request as urll
+
+def get_price():
+    priceurl = "https://api.coinmarketcap.com/v2/ticker/1831/?convert=EUR"
+    
+    pricedata = None
+    with urll.urlopen(priceurl, timeout=4) as u:
+        pricedata = json.loads(u.read().decode())
+        
+    return pricedata['data']['quotes']['EUR']['price'] if pricedata else None
+                             

@@ -170,14 +170,7 @@ class Wallet:
         self.utxos = utxos
         self.transactions = transactions
         self.history = {}
-        
-        self.block_height = block_height
-        
-        # Network
-        host = "46.28.204.198"
-        port = 8333
-        peer_address = (host, port)
-        self.network = Network(peer_address, self.block_height)
+        self.network = Network(block_height)
         
         # No encryption for the moment
         self.encrypted = False
@@ -240,7 +233,8 @@ class Wallet:
         utxos = self.utxos
         winfo['utxos'] = [ {'txid':o['txid'], 'index':o['index'], 'value':o['value'], 'address':o['address'].to_cash()} for o in self.utxos ]
         winfo['transactions'] = [ {'txid': tx['txid'].hex(), 'raw': tx['raw'].hex(), 'sent': tx['sent'] } for tx in self.transactions]
-        winfo['block_height'] = self.block_height
+        
+        winfo['block_height'] = self.network.block_height
         
         with open(filename, 'w') as f:
             json.dump(winfo, f, ensure_ascii=False)
@@ -266,14 +260,14 @@ class Wallet:
         self.network.start()
     
     def stop_network(self):
-        self.network.stop()
+        self.network.shutdown()
     
     def make_standard_transaction(self, output_address, amount):
         tx_version = 1
         assert isinstance(output_address, Address)
         assert amount >= Constants.DUST_THRESHOLD
         
-        tx = Transaction( tx_version, [], [ {'address': output_address, 'value': amount } ], self.block_height )
+        tx = Transaction( tx_version, [], [ {'address': output_address, 'value': amount } ], self.network.block_height )
         is_possible = False
         prvkeys = []
         unlocked_funds = 0
@@ -327,7 +321,14 @@ class Wallet:
         rawtx = tx.serialize()
         txid = tx.txid()
         
-        #self.transactions.append( {'txid': txid, 'raw': rawtx, 'sent': False} )
+        fee = tx.get_fee()
+        
+        return rawtx, txid, fee
+    
+    def add_new_transaction(self, raw, txid):
+        tx = {'txid': txid, 'raw': raw, 'sent': True}
+        if tx not in self.transactions:
+            self.transactions.append( tx )
         
     def compute_max_amount(self):
         ''' For P2PKH inputs and compressed public keys only. '''
