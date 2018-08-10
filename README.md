@@ -5,7 +5,25 @@ Project of a multicurrency lightweight wallet.
 
 ## Prerequisites
 
-Python 3.5 or higher. Packages : `ecdsa`, `hashlib`, `hmac`, `pbkdf2`, `socket`, `threading`, `collections` (deque).
+Python 3.5 or higher. Packages : `ecdsa`, `hashlib`, `hmac`, `pbkdf2`, `socket`, `threading`, `collections` (deque), `json`.
+
+## Quick overview
+
+`base58.py`  Base58Check conversion.
+
+`crypto.py`  Cryptography classes and functions: hash functions, ECDSA (private keys, public keys), extended keys, child key derivation, accounts.
+
+`mnemonic.py` Mnemonic phrases.
+
+`address.py`  Address class: legacy and cash format, kinds (P2PKH, P2SH).
+
+`script.py`  Scripting: locking scripts and unlocking scripts for P2PK, P2PKH, P2SH.
+
+`transaction.py`  Building of transactions.
+
+`network.py`  Network peer connexions.
+
+`wallet.py`
 
 ## Tasks
 
@@ -25,12 +43,11 @@ Handle a peer connexion in order to get wallet information. `network.py`
 
 Store keys and other information (addresses, transactions). `wallet.py`
 
+Manage blockchain headers. `blockchain.py`
+
 Some SegWit stuff (BTC). `segwit.py`
 
 
-### To do
-
-Manage blockchain headers. `blockchain.py` (yet to create) 
 
 ## Coin support
 
