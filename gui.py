@@ -161,12 +161,12 @@ class SlwWindow(QMainWindow):
                 msgBox = QMessageBox.question(self, "Transaction Confirmation", msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 
                 if msgBox == QMessageBox.Yes:
-                        
-                    self.wallet.network.send_tx( rawtx )
-                    
                     if self.wallet.network.state == 'connected':
+                        self.wallet.network.send_tx( rawtx )
                         self.wallet.add_new_transaction( rawtx, txid )
                         print("transaction sent")
+                    else:
+                        print("transaction not sent")
                 else:
                     print("transaction not sent")
             
