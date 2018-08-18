@@ -4,6 +4,10 @@
 from crypto import dsha256
 
 BLOCK_VERSION = 1 << 5
+BLOCKHEADER_SIZE = 80 # 80 bytes
+
+class BlockchainError(Exception):
+    '''Exception used for Blockchain errors.'''
 
 class BlockHeader:
     
@@ -53,6 +57,22 @@ class BlockHeader:
     
     def check(self):
         return int.from_bytes( dsha256( self.serialize() ), 'little') <= self.target()
+    
+def read_blockchain_headers_file( filename ):
+    with open(filename, "rb") as f:
+        height = 0
+        raw_hdr =  f.read(BLOCKHEADER_SIZE)
+        header = BlockHeader.from_serialized( raw_hdr )
+        while raw_hdr != bytes():
+            if not header.check():
+                raise BlockchainError("Headerchain not valid at block height {:d}:\n {}".format(height, raw_hdr.hex()))
+            height += 1
+            raw_hdr = f.read(BLOCKHEADER_SIZE)
+            header = BlockHeader.from_serialized( raw_hdr )
+            
+    return height
+
+    
 
 
 if __name__ == '__main__':
@@ -78,14 +98,18 @@ if __name__ == '__main__':
     
     print()
     print("10 first block headers")
-    with open("/home/lars/.electron-cash/blockchain_headers", "rb") as f:
+    filename = "/home/lars/.electron-cash/blockchain_headers"
+    with open(filename, "rb") as f:
         i = 0
         header = f.read(80)
         print(i, header.hex())
         while (header != bytes()) & (i < 10):
-            # Do stuff with byte.
             i+=1
             header = f.read(80)
             print(i, header.hex())
+            
+    block_height = read_blockchain_headers_file( filename )
+    print( block_height )
+        
             
     
