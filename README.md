@@ -39,7 +39,7 @@ Estimate size of transaction in order to compute transaction fees. Multiple inpu
 
 ### In progress
 
-Handle a peer connexion in order to get wallet information. `network.py`
+Handle a peer connexion in order to get wallet information. Inventory command? IPv6 support?`network.py`
 
 Store keys and other information (addresses, transactions). `wallet.py`
 
