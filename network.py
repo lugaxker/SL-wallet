@@ -97,8 +97,9 @@ def unwrap_network_message( data ):
     return command, payload, length, leftover
 
 
+
 class Network(threading.Thread):
-    ''' Network single-peer manager. '''
+    ''' Network manager. '''
     
     SERVICES = 0
     TX_RELAY = False
@@ -107,16 +108,20 @@ class Network(threading.Thread):
     def __init__(self, block_height, user_agent="slwallet"):
         threading.Thread.__init__(self)
         self.user_agent = "/{}/".format(user_agent).replace(" ", ":")
-        self.load_peer_list()
+        self.peer_list = self.load_peer_list()
         self.peer_address = self.peer_list[0]
         assert self.peer_address[1] == Constants.DEFAULT_PORT
         self.block_height = block_height
-        self.socket = None
+        self.peers = [Peer(self, self.peer_address)]
+        
+        # Inventory
+        self.inventory = collections.deque()
+        self.inventory_items = {}
         
     def load_peer_list(self, filename="peers.json"):
         with open(filename, 'r') as f:
             peer_list = json.load(f)
-        self.peer_list = [tuple(peer) for peer in peer_list]
+        return [tuple(peer) for peer in peer_list]
         
     def save_peer_list(self, filename="peers.json"):
         with open(filename, 'w') as f:
@@ -127,11 +132,43 @@ class Network(threading.Thread):
         threading.Thread.start(self)
         while not self.running:
             pass
+        for p in self.peers:
+            p.start()
         
     def shutdown(self):
+        for p in self.peers:
+            p.shutdown()
         self.running = False
         self.save_peer_list()
     
+    def run(self):
+        self.running = True
+        while self.running:
+            if self.peers[0].is_alive():
+                print("NETWORK dead")
+                break
+            time.sleep(0.1)
+
+
+class Peer(threading.Thread):
+    ''' Peer manager. Manages connexion to network peer.'''
+    
+    def __init__(self, network, peer_address):
+        threading.Thread.__init__(self)
+        self.network = network
+        self.peer_address = peer_address
+        self.sock = None
+    
+    def start(self):
+        print("start")
+        self.running = False
+        threading.Thread.start(self)
+        while not self.running:
+            pass
+        
+    def shutdown(self):
+        self.running = False
+        
     def run(self):
         self.state = 'init'
         self.running = True
@@ -151,45 +188,46 @@ class Network(threading.Thread):
             self.peer_verack = 0
             self.handshake = False
             
-            if self.socket == None:
+            if self.sock == None:
                 if self.make_connexion():
                     self.state = 'connected'
                     self.send_version()
                     
         elif self.state == 'connected':
+            
             self.handle_outgoing_data()
             self.handle_incoming_data()
         elif self.state == 'dead':
-            print("dead")
+            print("{} dead".format(self.peer_address[0]))
             self.close_connexion()
             self.running = False
-    
+        
     def make_connexion(self):
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.socket.settimeout(5)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.settimeout(5)
         try:
-            self.socket.connect(self.peer_address)
-            self.socket.settimeout(0.1)
+            self.sock.connect(self.peer_address)
+            self.sock.settimeout(0.1)
             return True
         except:
             self.state = 'dead'
             return False
-        
+    
     def close_connexion(self):
-        if self.socket is not None:
-            self.socket.close()
-            self.socket = None
+        if self.sock is not None:
+            self.sock.close()
+            self.sock = None
             
     def handle_incoming_data(self):
         try:
-            data = self.socket.recv(4096)
+            data = self.sock.recv(4096)
         except ConnectionResetError:
             data = bytes()
-        except socket.timeout:
+        except sock.timeout:
             # No new data
             return
         
-        print("incoming data", data.hex() )
+        print("incoming data from {}  {}".format(self.peer_address[0], data.hex() ))
         
         if len(data) == 0: # lost connexion
             self.state = 'dead'
@@ -199,7 +237,7 @@ class Network(threading.Thread):
         while self.state != 'dead':
             command, payload, length, self.data_buffer = unwrap_network_message( self.data_buffer )
             
-            if length != None and length > self.MAX_MESSAGE_SIZE:
+            if length != None and length > self.network.MAX_MESSAGE_SIZE:
                 self.state = 'dead'
                 break
             
@@ -212,7 +250,7 @@ class Network(threading.Thread):
         while len(self.outgoing_data_queue) > 0:
             q = self.outgoing_data_queue.popleft()
             try:
-                r = self.socket.send(q)
+                r = self.sock.send(q)
                 if r < len(q):
                     self.outgoing_data_queue.appendleft(q[r:])
                     return
@@ -231,17 +269,17 @@ class Network(threading.Thread):
         cmd(payload)
         
     def send_version(self):
-        print("send verack")
+        print("send version to {}".format(self.peer_address[0]))
         version = Constants.PROTOCOL_VERSION.to_bytes(4, 'little')
-        services = self.SERVICES.to_bytes(8, 'little')
+        services = self.network.SERVICES.to_bytes(8, 'little')
         timestamp = int( time.time() ).to_bytes(8, 'little')
         addr_recv = serialize_network_address(self.peer_address[0], 1, with_timestamp=False)
         addr_trans = serialize_network_address("127.0.0.1", 0, with_timestamp=False)
         nonce = getrandrange( 1 << 64 ).to_bytes(8, 'little')
-        user_agent = self.user_agent.encode('ascii')
+        user_agent = self.network.user_agent.encode('ascii')
         user_agent_bytes = bytes([len(user_agent)])
-        start_height = self.block_height.to_bytes(4, 'little')
-        relay = bytes([self.TX_RELAY])
+        start_height = self.network.block_height.to_bytes(4, 'little')
+        relay = bytes([self.network.TX_RELAY])
         payload = (version + services + timestamp + addr_recv + addr_trans + 
                    nonce + user_agent_bytes + user_agent + start_height + relay)
         self.outgoing_data_queue.append( wrap_network_message("version", payload) )
@@ -270,8 +308,8 @@ class Network(threading.Thread):
             self.state = 'dead'
             return
         
-        if self.peer_block_height > self.block_height:
-            self.block_height = self.peer_block_height
+        if self.peer_block_height > self.network.block_height:
+            self.network.block_height = self.peer_block_height
         
         self.send_verack()
         self.peer_verack += 1
@@ -281,9 +319,10 @@ class Network(threading.Thread):
         
         if self.peer_verack == 2:
             self.handshake = True
-            print("handshake done")
+            print("handshake done with {}".format(self.peer_address[0]))
         
     def send_verack(self):
+        print("send verack to {}".format(self.peer_address[0]))
         self.outgoing_data_queue.append( wrap_network_message("verack", bytes()) )
     
     def recv_verack(self, payload):
@@ -291,11 +330,11 @@ class Network(threading.Thread):
         self.peer_verack += 1
         if self.peer_verack == 2:
             self.handshake = True
-            print("handshake done")
+            print("handshake done with {}".format(self.peer_address[0]))
             
     def send_pong(self, payload):
         self.outgoing_data_queue.append( wrap_network_message("pong", payload) )
-        print('send pong')
+        print('send pong to {}'.format(self.peer_address[0]))
         
     def recv_ping(self, payload):
         self.send_pong(payload)
@@ -305,9 +344,10 @@ class Network(threading.Thread):
         
         for i in range(count):
             data, payload = payload[:30], payload[30:]
-            address, services, timestamp = deserialize_network_address( data, with_timestamp=True)
-            if address not in self.peer_list:
-                self.peer_list.append( address )
+            address, services, timestamp = deserialize_network_address( data, with_timestamp=True )
+            if (address not in self.network.peer_list) & (address[0] != "") & (address[1] == Constants.DEFAULT_PORT):
+                self.network.peer_list.append( address )
+                print("New IP address: {}".format(address[0]) )
     
     def recv_feefilter(self, payload):
         pass
@@ -329,9 +369,4 @@ class Network(threading.Thread):
     
     def recv_tx(self, payload):
         pass
-        
-        
-        
     
-
-
