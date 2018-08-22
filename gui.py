@@ -160,15 +160,15 @@ class SlwWindow(QMainWindow):
                 msg = "Do you want to send this transaction?\n\nOutput address: {}\nAmount: {:.8f} BCH ({:.2f} €)\nFee: {:.8f} BCH ({:.2f} €)".format(output_address.to_cash(), bch_amount, eur_amount, bch_fee, eur_fee)
                 msgBox = QMessageBox.question(self, "Transaction Confirmation", msg, QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
                 
+                txsent = False
                 if msgBox == QMessageBox.Yes:
-                    if self.wallet.network.state == 'connected':
-                        self.wallet.network.send_tx( rawtx )
-                        self.wallet.add_new_transaction( rawtx, txid )
-                        print("transaction sent")
-                    else:
-                        print("transaction not sent")
-                else:
-                    print("transaction not sent")
+                    for p in self.wallet.network.peers:
+                        if p.state == 'connected':
+                            p.send_tx( rawtx )
+                            #self.wallet.add_new_transaction( rawtx, txid )
+                            txsent = True
+                            break
+                print("transaction has been sent: {}".format(txid.hex()) if txsent else "could not send transaction")
             
             
     def show_mnemonic(self):

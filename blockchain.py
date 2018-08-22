@@ -58,7 +58,7 @@ class BlockHeader:
     def check(self):
         return int.from_bytes( dsha256( self.serialize() ), 'little') <= self.target()
     
-def read_blockchain_headers_file( filename ):
+def check_headerchain_file( filename ):
     with open(filename, "rb") as f:
         height = 0
         raw_hdr =  f.read(BLOCKHEADER_SIZE)
@@ -98,7 +98,7 @@ if __name__ == '__main__':
     
     print()
     print("10 first block headers")
-    filename = "/home/lars/.electron-cash/blockchain_headers"
+    filename = "headerchain"
     with open(filename, "rb") as f:
         i = 0
         header = f.read(80)
@@ -108,7 +108,7 @@ if __name__ == '__main__':
             header = f.read(80)
             print(i, header.hex())
             
-    block_height = read_blockchain_headers_file( filename )
+    block_height = check_headerchain_file( filename )
     print( block_height )
         
             
