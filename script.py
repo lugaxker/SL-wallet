@@ -111,9 +111,14 @@ def unlocking_script( addr, pubkeys, signatures ):
         return (multisig_unlocking_script(signatures) 
                 + push_data( redeemScript ))
 
-# TODO: P2PK, P2PKH, P2SH
+# TODO: P2PK, P2PKH, P2SH (multisig)
 def parse_unlocking_script( script ):
-    pass
+    if len( script ) in [70, 71, 72]: # P2PK
+        return None
+    elif len(script) in [104, 105, 106, 136, 137, 138]: #P2PKH
+        return None
+    else: # P2SH
+        return None
 
 def parse_locking_script( script ):
     pass

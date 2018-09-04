@@ -3,8 +3,9 @@
 
 from crypto import dsha256
 
+from constants import *
+
 BLOCK_VERSION = 1 << 5
-BLOCKHEADER_SIZE = 80 # 80 bytes
 
 class BlockchainError(Exception):
     '''Exception used for Blockchain errors.'''
@@ -28,6 +29,16 @@ class BlockHeader:
         timestamp = int.from_bytes( raw[68:72], 'little')
         bits = int.from_bytes( raw[72:76], 'little')
         nonce = int.from_bytes( raw[76:80], 'little')
+        return self(version, prev_block_id, merkle_root, timestamp, bits, nonce)
+    
+    @classmethod
+    def genesis(self):
+        version = Constants.GENESIS_BLOCK_VERSION
+        prev_block_id = bytes(32)
+        merkle_root = bytes.fromhex( Constants.GENESIS_MERKLE_ROOT )
+        timestamp = Constants.GENESIS_BLOCK_TIMESTAMP
+        bits = Constants.GENESIS_BLOCK_BITS
+        nonce = Constants.GENESIS_BLOCK_NONCE
         return self(version, prev_block_id, merkle_root, timestamp, bits, nonce)
         
     def serialize(self):
@@ -58,21 +69,111 @@ class BlockHeader:
     def check(self):
         return int.from_bytes( dsha256( self.serialize() ), 'little') <= self.target()
     
+    def __str__(self):
+        return self.__repr__()
+    
+    def __repr__(self):
+        return "<BlockHeader {}>".format(self.block_id().hex())
+    
+    
 def check_headerchain_file( filename ):
     with open(filename, "rb") as f:
         height = 0
-        raw_hdr =  f.read(BLOCKHEADER_SIZE)
+        raw_hdr =  f.read(Constants.BLOCKHEADER_SIZE)
         header = BlockHeader.from_serialized( raw_hdr )
         while raw_hdr != bytes():
             if not header.check():
                 raise BlockchainError("Headerchain not valid at block height {:d}:\n {}".format(height, raw_hdr.hex()))
             height += 1
-            raw_hdr = f.read(BLOCKHEADER_SIZE)
+            raw_hdr = f.read(Constants.BLOCKHEADER_SIZE)
             header = BlockHeader.from_serialized( raw_hdr )
             
     return height
 
+class Blockchain:
     
+    def __init__(self, headers):
+        self.headers = headers
+        self.height = len(self.headers) - 1
+    
+    @classmethod
+    def load(self, filename="headerchain"):
+        try:
+            f = open(filename, "rb")
+        except:
+            # File cannot be opened: we have to construct the genesis header
+            genesis_block_header = BlockHeader.genesis()
+            assert (genesis_block_header.block_id().hex() 
+                    == Constants.GENESIS_BLOCK_ID)
+            return self( [ genesis_block_header.serialize() ] )
+        else:
+            # File is opened
+            headers = []
+            hdr = f.read(Constants.BLOCKHEADER_SIZE)
+            while hdr != bytes():
+                headers.append( hdr )
+                hdr = f.read(Constants.BLOCKHEADER_SIZE)
+            return self( headers )
+        
+    def save(self, filename="headerchain"):
+        with open(filename, "wb") as f:
+            for hdr in self.headers:
+                f.write(hdr)
+                
+    def check(self):
+        prev_header = BlockHeader.genesis()
+        for hdr in self.headers[1:]:
+            header = BlockHeader.from_serialized( hdr )
+            if (not header.check()) | (prev_header.block_id() != header.prev_block_id):
+                return False
+            else:
+                prev_header = header
+        return True
+            
+            
+    def get_header(self, i):
+        if len(self.headers) < i:
+            return None
+        return BlockHeader.from_serialized( self.headers[i] )
+    
+    def get_height(self):
+        return self.height
+    
+    def add_headers(self, block_headers):
+        last_header = BlockHeader.from_serialized( self.headers[-1] )
+        for hdr in block_headers:
+            header = BlockHeader.from_serialized(hdr)
+            if not header.check():
+                raise BlockchainError("invalid header: {}".format(header) )
+            if last_header.block_id() != header.prev_block_id:
+                raise BlockchainError("cannot link {} to the chain".format(header))
+            self.headers.append( hdr )
+            self.height += 1
+            last_header = header
+    
+    def get_block_locators(self):
+        # Used in getheaders network message.
+        step = 1
+        index = self.height
+        block_locators = []
+        while index > 0:
+            if len(block_locators) >= 10:
+                step *= 2
+            header = BlockHeader.from_serialized( self.headers[index] )
+            block_locators.append( header.block_id() )
+            index -= step
+        
+        # Genesis block
+        genesis_header = BlockHeader.genesis()
+        block_locators.append( genesis_header.block_id() )
+        return block_locators
+    
+    def __str__(self):
+        return self.__repr__()
+    
+    def __repr__(self):
+        return "<Blockchain object: height={:d}>".format(self.height)
+        
 
 
 if __name__ == '__main__':
@@ -95,21 +196,21 @@ if __name__ == '__main__':
     print(diff)
     
     print("check:", hdr.check() )
+    print()
+    
+    # Header chain
+    blc = Blockchain.load()
+    is_valid = blc.check()
+    print("is headerchain valid?", is_valid)
     
     print()
-    print("10 first block headers")
-    filename = "headerchain"
-    with open(filename, "rb") as f:
-        i = 0
-        header = f.read(80)
-        print(i, header.hex())
-        while (header != bytes()) & (i < 10):
-            i+=1
-            header = f.read(80)
-            print(i, header.hex())
-            
-    block_height = check_headerchain_file( filename )
-    print( block_height )
-        
+    print("First block headers")
+    n = min( blc.get_height(), 10)
+    for i in range(n):
+        header = BlockHeader.from_serialized( blc.headers[i] )
+        print(i, header.serialize().hex(), header.block_id().hex())
+    
+    #print("saving")
+    #blc.save()
             
     

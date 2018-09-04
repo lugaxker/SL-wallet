@@ -2,11 +2,14 @@
 # -*- coding: utf-8 -*-
 
 class Inventory:
+    # Inventory vectors are used for notifying other nodes about objects they
+    # have or data which is being requested.
+    
     MSG_ERROR = 0
     MSG_TX    = 1
     MSG_BLOCK = 2
-    MSG_FILTERED_BLOCK = 3
-    MSG_CMPCT_BLOCK = 4
+    MSG_FILTERED_BLOCK = 3  # Defined in BIP-37
+    MSG_CMPCT_BLOCK = 4     # Defined in BIP-152
     
     def __init__(self, t=MSG_ERROR, h=None):
         self.t = t
@@ -31,7 +34,7 @@ class Inventory:
         return self( self.MSG_BLOCK, blockid[::-1] )
     
     @classmethod
-    def deserialize(self, inv):
+    def from_serialized(self, inv):
         assert len(inv) == 36
         t = int.from_bytes(inv[:4], 'little')
         h = inv[4:]

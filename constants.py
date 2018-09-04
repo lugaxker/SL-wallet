@@ -13,6 +13,17 @@ class Constants:
     FEE_RATE = 1 # in sat per byte (sat/B)
     DUST_THRESHOLD = 546 * FEE_RATE
     
+    BLOCKHEADER_SIZE = 80 # 80 bytes
+    
+    # Services flags
+    NODE_NONE = 0
+    NODE_NETWORK = (1 << 0)
+    NODE_GETUTXO = (1 << 1)
+    NODE_BLOOM = (1 << 2)
+    NODE_XTHIN = (1 << 4)
+    NODE_BITCOIN_CASH = (1 << 5)
+    
+    
     @classmethod
     def set_mainnet(self):
         ''' Main network. '''
@@ -30,6 +41,14 @@ class Constants:
         
         self.NETWORK_MAGIC = 0xe8f3e1e3
         self.DEFAULT_PORT = 8333
+        
+        # Genesis Block
+        self.GENESIS_BLOCK_ID = "000000000019d6689c085ae165831e934ff763ae46a2a6c172b3f1b60a8ce26f"
+        self.GENESIS_BLOCK_VERSION = 1
+        self.GENESIS_MERKLE_ROOT = "4a5e1e4baab89f3a32518a88c31bc87f618f76673e2cc77ab2127b7afdeda33b"
+        self.GENESIS_BLOCK_TIMESTAMP = 1231006505
+        self.GENESIS_BLOCK_BITS = 0x1d00ffff
+        self.GENESIS_BLOCK_NONCE = 2083236893
     
     @classmethod
     def set_testnet(self):

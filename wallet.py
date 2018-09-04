@@ -170,7 +170,7 @@ class Wallet:
         self.utxos = utxos
         self.transactions = transactions
         self.history = {}
-        self.network = Network(block_height)
+        self.network = Network()
         
         # No encryption for the moment
         self.encrypted = False
