@@ -23,7 +23,6 @@ DSH_BIP44_TYPE = 0x05
 ETH_BIP44_TYPE = 0x3c
 
 # Ethereum functions
-
 def keccak256(x):
     return sha3.keccak_256( x ).digest()
     
@@ -44,6 +43,7 @@ def eth_test_checksum(addrstr):
     assert(addrstr == eth_checksum_encode(addrstr[2:].lower()))
     
 def eth_pubkey_to_addr( pubkey ):
+    ''' Computes ethereum address from un compressed public key. '''
     assert( pubkey[0] == 0x04 )
     return eth_checksum_encode( keccak256( pubkey[1:] )[-20:].hex() )
 

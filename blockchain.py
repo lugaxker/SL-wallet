@@ -75,6 +75,9 @@ class BlockHeader:
     def __repr__(self):
         return "<BlockHeader {}>".format(self.block_id().hex())
     
+class Block:
+    pass
+    
     
 def check_headerchain_file( filename ):
     with open(filename, "rb") as f:
@@ -200,6 +203,7 @@ if __name__ == '__main__':
     
     # Header chain
     blc = Blockchain.load()
+    print(blc)
     is_valid = blc.check()
     print("is headerchain valid?", is_valid)
     

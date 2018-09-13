@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-class Inventory:
+class InventoryVector:
     # Inventory vectors are used for notifying other nodes about objects they
     # have or data which is being requested.
     
@@ -49,7 +49,7 @@ class Inventory:
         return self.__repr__()
     
     def __repr__(self):
-        return "<Inventory {} {}>".format(
+        return "<InventoryVector {} {}>".format(
                 { self.MSG_ERROR: "error",
                   self.MSG_TX   : "tx",
                   self.MSG_BLOCK: "block" }[self.t], 

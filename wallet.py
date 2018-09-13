@@ -250,6 +250,7 @@ class Wallet:
             self.chng_addresses += self.keystore.get_addresses( branch, len(self.chng_addresses) )
     
     def update_utxos(self):
+        print( "update utxos")
         utxos = []
         for a in (self.recv_addresses + self.chng_addresses):
             utxos += get_address_utxos(a) 

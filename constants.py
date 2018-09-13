@@ -23,6 +23,15 @@ class Constants:
     NODE_XTHIN = (1 << 4)
     NODE_BITCOIN_CASH = (1 << 5)
     
+    # Rejection codes
+    REJECT_MALFORMED = 0x01
+    REJECT_INVALID = 0x02
+    REJECT_OBSOLETE = 0x11
+    REJECT_DUPLICATE = 0x12
+    REJECT_NONSTANDARD = 0x40
+    REJECT_DUST = 0x41
+    REJECT_INSUFFICIENTFEE = 0x42
+    REJECT_CHECKPOINT = 0x43
     
     @classmethod
     def set_mainnet(self):

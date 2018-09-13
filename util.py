@@ -13,7 +13,7 @@ def read_bytes( b, l, t, e ):
         if e == 'big':
             return b[:l].hex(), b[l:]
         if e == 'little':
-            return b[l::-1].hex(), b[l:]
+            return b[(l-1)::-1].hex(), b[l:]
     elif t == int:
         return int.from_bytes( b[:l], e ), b[l:]
     return None

@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+'''
+
+Get rid of the fiat money system.
+
+'''
+
 from util import get_price
 
 from address import Address
@@ -167,7 +173,7 @@ class SlwWindow(QMainWindow):
                             p.send_tx( rawtx )
                             #self.wallet.add_new_transaction( rawtx, txid )
                             txsent = True
-                            break
+                            #break
                 print("transaction has been sent: {}".format(txid.hex()) if txsent else "could not send transaction")
             
             
@@ -186,10 +192,6 @@ class SlwWindow(QMainWindow):
     def closeEvent(self, event):
         self.wallet.save()
         self.wallet.stop_network()
-        
-    
-    
-
 
 
 

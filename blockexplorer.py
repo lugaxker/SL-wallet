@@ -8,6 +8,7 @@ from address import Address
 
 def get_address_utxos( address ):
     ''' address: Address '''
+    print("get_address_utxos")
     addr = address.to_cash()
     
     confirmed_outputs_url = "https://api.blockchair.com/bitcoin-cash/outputs"
