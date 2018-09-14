@@ -117,7 +117,6 @@ class Network(threading.Thread):
     BLOCKCHAIN_SYNC_WAIT_TIME = 5
     HEADERS_REQUEST_TIMEOUT = 25
 
-    
     def __init__(self, user_agent="slwallet"):
         threading.Thread.__init__(self)
         self.user_agent = "/{}/".format(user_agent).replace(" ", ":")
@@ -131,18 +130,16 @@ class Network(threading.Thread):
         # Blockchain
         self.blockchain = Blockchain.load()
         self.block_height = self.blockchain.get_height()
+        print("  Network block height", self.block_height)
         self.blockchain_sync_lock = threading.Lock()
-        self.initiate_blockchain_sync = False
+        self.initial_blockchain_sync = True
         
         # Inventory
         # TODO: do it in inventory.py? 
-        self.inventory = collections.deque()
-        self.inventory_items = {}
-        for txid, rawtx in self.txdb.items():
+        self.inventory = []
+        for txid in self.txdb:
             self.inventory.append( InventoryVector.from_tx_id( txid ) )
-            self.inventory_items[txid] = rawtx
-        print(self.inventory)
-        print(self.inventory_items)
+        self.inv_lock = threading.Lock()
                 
         
         # Listen address
@@ -188,20 +185,58 @@ class Network(threading.Thread):
                 print("NETWORK dead")
                 break
             
-            # Initiate blockchain synchronization
-            if not self.initiate_blockchain_sync:
-                self.request_headers( self.peers[0] )
-                self.initiate_blockchain_sync = True
+            # Initial blockchain synchronization
+            if self.initial_blockchain_sync:
+                self.request_headers()
             
             time.sleep(0.01)
             
-    # TODO: handle multithreaded blockchain sync? handle invs?
-            
-    def request_headers(self, peer):
-        peer.headers_request = True        
-
+    # TODO: manage requests for block headers, transactions and blocks (merkleblock?)
+    
+    def request_headers(self):
+        now = time.time()
+        
+        # TODO: wait for peer to start
+        
+        if all([ (p.block_height < self.block_height) for p in self.peers ]):
+            self.initial_blockchain_sync = False
+        
+        if not any( [p.headers_request for p in self.peers] ):
+            self.peers[0].headers_request = True
+            self.peers[0].headers_request_time = now
+        
+        for p in self.peers:
+            if p.headers_request:
+                
+                # Wait for a bit before requesting from peer
+                if (now - p.handshake_time) < self.BLOCKCHAIN_SYNC_WAIT_TIME:
+                    return
+                
+                # Timeout or block height
+                if ((now - p.headers_request_time) > self.HEADERS_REQUEST_TIMEOUT) | (p.block_height < self.block_height):
+                    p.headers_request = False
+                    p.headers_request_time = 0
+                    next_peer = self.peers[(self.peers.index( p ) + 1) % len(self.peers)]
+                    next_peer.headers_request = True
+                    next_peer.headers_request_time = now
+                
+                break
+                
+                    
+        
+        
+        
+    #def request_headers(self, peer):
+        #peer.headers_request = True 
+        
+    
+    # TODO: Discriminate between unsolicited headers and requests?
     def received_headers(self, peer, headers):
         assert peer in self.peers
+        
+        if not peer.headers_request:
+            # Unsolicited headers or timed out
+            return
         
         with self.blockchain_sync_lock:
             try:
@@ -214,15 +249,40 @@ class Network(threading.Thread):
                 best_height = self.peers_best_height()
                 print("block height: {:d} / {:d} ({:.2f} %)".format(self.block_height, best_height, 
                       self.block_height / best_height * 100 ))
-                return True
+        
+        peer.headers_request = False
+        peer.headers_request_time = 0
+        next_peer = self.peers[(self.peers.index( peer ) + 1) % len(self.peers)]
+        next_peer.headers_request = True
+        next_peer.headers_request_time = time.time()
+        
+        
+            
+    def request_tx(self, peer, txid):
+        pass
+    
+    def received_tx(self, tx):
+        txid = tx.txid()
+        if txid not in self.inventory:
+            self.inventory.append( txid )
+            self.txdb = tx.serialize().hex()
             
     def peers_best_height(self):
-        return max([peer.peer_block_height for peer in self.peers])
+        return max([peer.block_height for peer in self.peers])
     
     
         
     
     # TODO: peer discrimination (good peer, bad peer, add peer, delete peer)
+    
+    def add_peer_address(self, peer_address):
+        pass
+    
+    def update_peer_address(self, peer_address):
+        pass
+    
+    def delete_peer_address(self, peer_address):
+        pass
     
     # TODO: listening socket
     
@@ -234,7 +294,7 @@ class Peer(threading.Thread):
     def __init__(self, network, peer_address):
         threading.Thread.__init__(self)
         self.network = network
-        self.peer_address = peer_address
+        self.address = peer_address
         self.sock = None
         
         # temporary...
@@ -259,12 +319,13 @@ class Peer(threading.Thread):
                 print(e)
                 break
             time.sleep(0.1)
-        print("{} stopped running".format(self.peer_address['host']))
+        print("{} stopped running".format(self.address['host']))
     
     def step(self):
         # temporary...
         if (self.steps % 30) == 0:
-            pass #print( "{}: {}".format(self.peer_address['host'], self.state) )
+            #print( "{}: {}".format(self.address['host'], self.state) )
+            print( " ", self.headers_request )
         self.steps += 1
         
         if self.state == 'init':
@@ -275,12 +336,13 @@ class Peer(threading.Thread):
             self.peer_verack = 0
             self.handshake_time = None
             
-            self.peer_block_height = 0
+            self.block_height = 0
             self.sync_time = 0
             self.headers_request = False
             self.headers_request_time = 0
             self.headers_request_in_progress = False
             
+            self.recvheaders = False
             self.sendheaders = False
             self.sendcmpct = False
             
@@ -295,15 +357,17 @@ class Peer(threading.Thread):
             self.handle_blockchain_sync()
             self.handle_inventory()
             
+            
+            
         elif self.state == 'dead':
             self.close_connexion()
-            self.peer_address['time'] = time.time()
+            self.address['time'] = time.time()
             self.running = False
         
     def make_connexion(self):
-        print("making connexion to {}".format(self.peer_address['host']))
+        print("making connexion to {}".format(self.address['host']))
         
-        for res in socket.getaddrinfo(self.peer_address['host'], self.peer_address['port'], socket.AF_UNSPEC, socket.SOCK_STREAM):
+        for res in socket.getaddrinfo(self.address['host'], self.address['port'], socket.AF_UNSPEC, socket.SOCK_STREAM):
             af, socktype, proto, canonname, sa = res
             
             # TODO: IPv6 support
@@ -340,14 +404,14 @@ class Peer(threading.Thread):
             self.sock = None
             
     def get_address(self):
-        return self.peer_address
+        return self.address
     
-    def get_next_peer(self):
-        peers = self.network.peers
-        return peers[(peers.index( self ) + 1) % len(peers)]
+    #def get_next_peer(self):
+        #peers = self.network.peers
+        #return peers[(peers.index( self ) + 1) % len(peers)]
     
     def handle_command(self, command, payload):
-        print("{} handle command: {}".format(self.peer_address['host'], command))
+        print("{} handle command: {}".format(self.address['host'], command))
         if self.peer_verack < 2 and command not in ('version', 'verack'):
             raise NetworkError("invalid command")
         try:
@@ -405,45 +469,32 @@ class Peer(threading.Thread):
             return
         
         # just once...
-        if not self.sendheaders:
+        if not self.recvheaders:
             self.send_sendheaders()
-            self.sendheaders = True
+            self.recvheaders = True
             self.send_feefilter()
-            #if self.peer_address['host'] == "176.9.7.168":
+            #if self.address['host'] == "176.9.7.168":
                 #peer_addresses = self.network.peer_list
                 #random.shuffle( peer_addresses )
                 #peer_addresses = peer_addresses[:10]
                 #self.send_addr( peer_addresses )
         
-        # Wait for a bit before requesting from peer
-        if (now - self.handshake_time) < self.network.BLOCKCHAIN_SYNC_WAIT_TIME:
-            return
-        
-        # Ask for headers...
-        if self.headers_request & (self.network.block_height < self.peer_block_height):
+        if self.headers_request:
             with self.network.blockchain_sync_lock:
                 block_locators = self.network.blockchain.get_block_locators()
                 self.send_getheaders(block_locators)
-                self.headers_request = False
-                self.headers_request_in_progress = True
-                self.headers_request_time = time.time()
-        
-        # Headers request timeout: we request headers from another peer
-        if self.headers_request_in_progress & ((now - self.headers_request_time) > self.network.HEADERS_REQUEST_TIMEOUT):
-            print("{} HEADERS_REQUEST_TIMEOUT".format(self.peer_address['host']))
-            self.headers_request_in_progress = False
-            self.network.request_headers( self.get_next_peer() )
     
     def handle_inventory(self):
         pass
         
     def send_version(self):
-        print("send version to {}".format(self.peer_address['host']))
+        # Version
+        print("send version to {}".format(self.address['host']))
         version = Constants.PROTOCOL_VERSION.to_bytes(4, 'little')
         my_services = Constants.NODE_NONE + Constants.NODE_BITCOIN_CASH #SPV
         services = my_services.to_bytes(8, 'little')
         timestamp = int( time.time() ).to_bytes(8, 'little')
-        addr_recv = serialize_network_address(self.peer_address, with_timestamp=False)
+        addr_recv = serialize_network_address(self.address, with_timestamp=False)
         my_network_address = {'host':"127.0.0.1", 'port':8333, 'services':my_services}
         addr_trans = serialize_network_address(my_network_address, with_timestamp=False)
         nonce = getrandrange( 1 << 64 ).to_bytes(8, 'little')
@@ -462,9 +513,9 @@ class Peer(threading.Thread):
             return
         
         try:
-            self.peer_version, payload = read_bytes(payload, 4, int, 'little')
-            self.peer_services, payload = read_bytes(payload, 8, int, 'little')
-            self.peer_time, payload = read_bytes(payload, 8, int, 'little')
+            self.version, payload = read_bytes(payload, 4, int, 'little')
+            self.services, payload = read_bytes(payload, 8, int, 'little')
+            self.time, payload = read_bytes(payload, 8, int, 'little')
             addr_recv, payload = read_bytes(payload, 26, bytes, 'big')
             my_network_address = deserialize_network_address(addr_recv, with_timestamp=False)
             addr_trans, payload = read_bytes(payload, 26, bytes, 'big')
@@ -472,7 +523,7 @@ class Peer(threading.Thread):
             nonce, payload = read_bytes(payload, 8, int, 'little')
             peer_user_agent_size, payload = read_var_int(payload)
             peer_user_agent, payload = read_bytes(payload, peer_user_agent_size, bytes, 'big')
-            self.peer_block_height, payload = read_bytes(payload, 4, int, 'little')
+            self.block_height, payload = read_bytes(payload, 4, int, 'little')
             relay, payload = read_bytes(payload, 1, int, 'little')
             assert payload == bytes()
         except:
@@ -489,10 +540,11 @@ class Peer(threading.Thread):
         
         if self.peer_verack == 2:
             self.handshake_time = time.time()
-            print("{} handshake done".format(self.peer_address['host']))
+            print("{} handshake done".format(self.address['host']))
         
     def send_verack(self):
-        print("send verack to {}".format(self.peer_address['host']))
+        # Version acknowledgment.
+        print("send verack to {}".format(self.address['host']))
         self.outgoing_data_queue.append( wrap_network_message("verack", bytes()) )
     
     def recv_verack(self, payload):
@@ -500,19 +552,19 @@ class Peer(threading.Thread):
         self.peer_verack += 1
         if self.peer_verack == 2:
             self.handshake_time = time.time()
-            print("handshake done with {}".format(self.peer_address['host']))
+            print("handshake done with {}".format(self.address['host']))
             
     def send_ping(self):
         nonce = getrandrange( 1 << 64 ).to_bytes(8, 'little')
         self.outgoing_data_queue.append( wrap_network_message("ping", payload) )
-        print("send ping to {}".format(self.peer_address['host']))
+        print("send ping to {}".format(self.address['host']))
         
     def recv_ping(self, payload):
         self.send_pong(payload)
     
     def send_pong(self, payload):
         self.outgoing_data_queue.append( wrap_network_message("pong", payload) )
-        print("send pong to {}".format(self.peer_address['host']))
+        print("send pong to {}".format(self.address['host']))
     
     def recv_pong(self, payload):
         pass
@@ -520,7 +572,7 @@ class Peer(threading.Thread):
     def send_getaddr(self):
         # Ask information about known active peers.
         self.outgoing_data_queue.append( wrap_network_message("getaddr", bytes()) )
-        print("send getaddr to {}".format(self.peer_address['host']))
+        print("send getaddr to {}".format(self.address['host']))
     
     def recv_getaddr(self, payload):
         assert payload == bytes()
@@ -533,7 +585,7 @@ class Peer(threading.Thread):
         count = var_int( len( peer_addresses ) )
         payload = count + bytes().join( serialize_network_address( pa, with_timestamp=True ) for pa in peer_addresses )
         self.outgoing_data_queue.append( wrap_network_message("addr", bytes()) )
-        print("send addr to {}".format(self.peer_address['host']))
+        print("send addr to {}".format(self.address['host']))
         print( " ", payload.hex() )
         
     def recv_addr(self, payload):
@@ -552,7 +604,7 @@ class Peer(threading.Thread):
         feerate = Constants.FEE_RATE * 1000
         my_feerate = feerate.to_bytes(8, 'little')
         self.outgoing_data_queue.append( wrap_network_message("feefilter", my_feerate) )
-        print("send feefilter to {}".format(self.peer_address['host']))
+        print("send feefilter to {}".format(self.address['host']))
     
     def recv_feefilter(self, payload):
         self.peer_feerate, payload = read_bytes(payload, 8, int, 'little')
@@ -564,22 +616,40 @@ class Peer(threading.Thread):
         # Advertise our knowledge of one or more objects.
         payload = var_int( len(invs) ) + bytes().join( inv.serialize() for inv in invs )
         self.outgoing_data_queue.append( wrap_network_message("inv", payload) )
-        print("send inv to {}".format(self.peer_address['host']))
+        print("send inv to {}".format(self.address['host']))
     
     def recv_inv(self, payload):
         count, payload = read_var_int(payload)
         
         for i in range(count):
-            data, payload = read_bytes(payload, 30, bytes, 'big')
-            inv = Inventory.from_serialized( data )
-            # TODO getdata if we need it
+            data, payload = read_bytes(payload, 36, bytes, 'big')
+            inv = InventoryVector.from_serialized( data )
+            # TODO get data if we need it
+            #   invs.append( inv )
+            # self.send_getdata( invs )
             print(inv)
             
-    def send_getdata(self):
-        pass
+    def send_getdata(self, invs):
+        payload = var_int( len(invs) ) + bytes().join( inv.serialize() for inv in invs )
+        self.outgoing_data_queue.append( wrap_network_message("getdata", payload) )
+        print("send getdata to {}".format(self.address['host']))
+
     
     def recv_getdata(self, payload):
-        pass
+        count, payload = read_var_int(payload)
+        
+        for i in range(count):
+            data, payload = read_bytes(payload, 36, bytes, 'big')
+            inv = InventoryVector.from_serialized( data )
+            if inv in self.inventory:
+                if inv.is_tx():
+                    try:
+                        tx = self.txdb[inv.get_id()]
+                    except:
+                        raise NetworkError("cannot retrieve transaction")
+                    else:
+                        self.send_tx( bytes.fromhex( tx ) )
+                    
     
     def send_notfound(self):
         pass
@@ -591,7 +661,7 @@ class Peer(threading.Thread):
     
     def send_sendheaders(self):
         self.outgoing_data_queue.append( wrap_network_message("sendheaders", bytes()) )
-        print("send sendheaders to {}".format(self.peer_address['host']))
+        print("send sendheaders to {}".format(self.address['host']))
     
     def recv_sendheaders(self, payload):
         # Upon receipt of this message, the node is be permitted, but not
@@ -607,10 +677,12 @@ class Peer(threading.Thread):
         
         payload = version + length_block_locators + ser_block_locators + stop
         self.outgoing_data_queue.append( wrap_network_message("getheaders", payload) )
-        print("send getheaders to {}".format(self.peer_address['host']))
+        print("send getheaders to {}".format(self.address['host']))
         
     def recv_getheaders(self, payload):
         pass
+    
+    
     
     def recv_headers(self, payload):
         count, payload = read_var_int(payload)
@@ -622,16 +694,18 @@ class Peer(threading.Thread):
             headers.append(hdr)
             tx_count, payload = read_var_int(payload)
             assert tx_count == 0
+        
+        self.network.received_headers(self, headers)
 
-        if self.network.received_headers(self, headers ):
-            self.sync_time = time.time()
-            self.headers_request_in_progress = False
+        #if self.network.received_headers(self, headers):
+            #self.sync_time = time.time()
+            #self.headers_request_in_progress = False
             
-            # We request headers from another peer
-            next_peer = self.get_next_peer()
-            self.network.request_headers( next_peer )
-        else:
-            print("recv_headers error")
+            ## We request headers from another peer
+            #next_peer = self.get_next_peer()
+            #self.network.request_headers( next_peer )
+        #else:
+            #print("recv_headers error")
             
     # Blocks
     
@@ -651,7 +725,12 @@ class Peer(threading.Thread):
         pass
             
     def recv_sendcmpct(self, payload):
-        self.sendcmpct = True
+        # TODO: read integers
+        # _, payload = read_bytes(payload, 1, int, 'little')
+        # _, payload = read_bytes(payload, 8, int, 'little')
+        # assert payload == bytes()
+        #print(" sendcmpct", payload.hex())
+        pass#self.sendcmpct = True
         
     # Bloom Filtering for Simplified Payment Verification
     
@@ -701,11 +780,19 @@ class Peer(threading.Thread):
         pass
     
     def send_tx(self, payload):
+        # Transaction message: version - inputs - outputs - locktime
+        # See transaction.py for more details
         self.outgoing_data_queue.append( wrap_network_message("tx", payload) )
     
     def recv_tx(self, payload):
-        pass
-    
+        tx = Transaction.from_serialized( payload )
+        
+        # TODO: conditions to accept the transaction
+        if tx.txid() in self.tx_requests:
+            self.network.received_tx( tx )
+        else:
+            print("unsolicited transaction from {}".format(self.address['host']) )
+        
     def send_reject(self):
         pass
     
@@ -719,7 +806,7 @@ class Peer(threading.Thread):
         reason = raw_reason.decode('utf-8')
         data = payload.hex()
         
-        print("{} reject {}: {}, {} {}".format( self.peer_address['host'], msg, 
+        print("{} reject {}: {}, {} {}".format( self.address['host'], msg, 
         { Constants.REJECT_MALFORMED: "malformed",
           Constants.REJECT_INVALID: "invalid",
           Constants.REJECT_OBSOLETE: "obsolete",
@@ -729,14 +816,11 @@ class Peer(threading.Thread):
           Constants.REJECT_INSUFFICIENTFEE: "insufficient fee",
           Constants.REJECT_CHECKPOINT: "checkpoint" }[ccode],
         reason, data) )
-        
-    
-    
     
     def __str__(self):
         return self.__repr__()
     
     def __repr__(self):
-        return "<Peer {host}/{port}>".format(**self.peer_address)
+        return "<Peer {host}/{port}>".format(**self.address)
 
     

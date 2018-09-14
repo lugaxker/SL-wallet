@@ -23,6 +23,13 @@ class Constants:
     NODE_XTHIN = (1 << 4)
     NODE_BITCOIN_CASH = (1 << 5)
     
+    # Inventory Vectors
+    MSG_ERROR = 0
+    MSG_TX    = 1
+    MSG_BLOCK = 2
+    MSG_FILTERED_BLOCK = 3  # Defined in BIP-37
+    MSG_CMPCT_BLOCK = 4     # Defined in BIP-152
+    
     # Rejection codes
     REJECT_MALFORMED = 0x01
     REJECT_INVALID = 0x02

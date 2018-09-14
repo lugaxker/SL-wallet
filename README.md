@@ -21,9 +21,11 @@ Python 3.5 or higher. Packages : `ecdsa`, `hashlib`, `hmac`, `pbkdf2`, `socket`,
 
 `transaction.py`  Building of transactions.
 
+`inventory.py` Inventory vectors.
+
 `network.py`  Network peer connexions.
 
-`wallet.py`
+`wallet.py` Keys, addresses and UTXO management.
 
 ## Tasks
 
