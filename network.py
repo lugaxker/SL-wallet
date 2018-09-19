@@ -163,6 +163,7 @@ class Network(threading.Thread):
 
     def start(self):
         self.running = False
+        self.start_time = time.time()
         for p in self.peers:
             p.start()
         threading.Thread.start(self)
@@ -196,7 +197,9 @@ class Network(threading.Thread):
     def request_headers(self):
         now = time.time()
         
-        # TODO: wait for peer to start
+        # wait for peer to start
+        if (now - self.start_time) < self.BLOCKCHAIN_SYNC_WAIT_TIME:
+            return
         
         if all([ (p.block_height < self.block_height) for p in self.peers ]):
             self.initial_blockchain_sync = False
@@ -323,7 +326,7 @@ class Peer(threading.Thread):
     
     def step(self):
         # temporary...
-        if (self.steps % 30) == 0:
+        if (self.steps % 30) == 15:
             #print( "{}: {}".format(self.address['host'], self.state) )
             print( " ", self.headers_request )
         self.steps += 1

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from crypto import (hash160, PublicKey)
+from crypto import (sha256, hash160, PublicKey)
 from address import Address
 
 from util import read_bytes
@@ -124,7 +124,100 @@ def unlocking_script( addr, pubkeys, signatures ):
         redeemScript = multisig_locking_script(pubkeys, len(signatures))
         assert addr.h == hash160(redeemScript) 
         return (multisig_unlocking_script(signatures) 
-                + push_data( redeemScript ))   
+                + push_data( redeemScript ))
+    
+DATA_MEMO = 0x6d
+DATA_MATTER = 0x9b
+
+def return_script( content, prefix, protocol ):
+    ''' Content (list of str) '''
+    assert all( isinstance(d, str) for d in content)
+    
+    if protocol is None:
+        if prefix is None:
+            script = bytes().join( push_data(d) for d in content )
+        else:
+            script = push_data( prefix ) + bytes().join( push_data(d) for d in content )
+    elif protocol == "memo":
+        
+        if prefix in (0x01, 0x02, 0x05, 0x06):
+            return( bytes([protocol, prefix]) +
+                bytes.join( push_data( d.encode('utf-8') ) for d in content ) )
+        elif prefix in (0x03, 0x04, 0x06, 0x07):
+            return( bytes([protocol, prefix]) +
+                    bytes.fromhex( content[0] ) +
+                    bytes.join( push_data( d.encode('utf-8') ) for d in content[1:] ) )
+        else:
+            raise ScriptError("cannot serialize data script")
+    else:
+        raise ScriptError("cannot serialize data script")
+                   
+    
+    
+    
+def parse_return_script( script ):
+    ''' Returns protocol, prefix and content. '''
+    ret, script = read_bytes( script, 1, int, 'little' )
+    assert len(script) <= 220
+    meta, script = read_data( script )
+    protocol = {DATA_MEMO: "memo", DATA_MATTER: "matter"}[meta[0]]
+    prefix = meta[1]
+    if protocol == "memo": 
+        if prefix == 0x01: # set name
+            name, script = read_data( script )
+            return protocol, prefix, [name.decode('utf-8')]
+        elif prefix == 0x02: # post
+            post, script = read_data( script )
+            return protocol, prefix, [post.decode('utf-8')]
+        elif prefix == 0x03: # reply
+            txhash, script = read_data( script )
+            reply, script = read_data( script )
+            return protocol, prefix, [txhash[::-1].hex(), reply.decode('utf-8')]
+        elif prefix == 0x04: # like
+            txhash, script = read_data( script )
+            return protocol, prefix, [txhash[::-1].hex()]
+        elif prefix == 0x05: # set profile text
+            profile, script = read_data( script )
+            return protocol, prefix, [profile.decode('utf-8')]
+        elif prefix == 0x06: # follow 
+            address, script = read_data( script )
+            return protocol, prefix, [Address.from_pubkey_hash( address )]
+        elif prefix == 0x07: # unfollow
+            address, script = read_data( script )
+            return protocol, prefix, [Address.from_pubkey_hash( address )]
+        elif prefix == 0x0c: # topic post
+            topic, script = read_data( script )
+            post, script = read_data( script )
+            return protocol, prefix, [topic.decode('utf-8'), post.decode('utf-8')]
+        else:
+            return None, None, None
+    elif protocol == "matter": 
+        if prefix == 0x01: # post header
+            checksum, script = read_data( script )
+            chunkCount, script = read_data( script )
+            chunk_count = int.from_bytes( chunkCount, 'little' )
+            if script != bytes():
+                title, script = read_data( script )
+            
+            tags = []
+            while script != bytes():
+                tag, script = read_data( script )
+                tags.append( tag )
+            return protocol, prefix, [checksum, chunkCount, title.decode('utf-8'), ]
+        elif prefix == 0x02: # post chunk
+            return protocol, prefix, None
+        elif prefix == 0x03: # set profile name
+            return protocol, prefix, None
+        elif prefix == 0x04: # set avatar
+            return protocol, prefix, None
+        elif prefix == 0x05: # set profile bio
+            return protocol, prefix, None
+        else:
+            return None, None, None
+    else:
+        return None, None, None
+            
+    
 
 def parse_unlocking_script( script ):
     # Returns type, signatures, public keys and address of the input
@@ -161,31 +254,35 @@ def parse_unlocking_script( script ):
         n, redeemScript = read_bytes( redeemScript, 1, int, 'little')
         assert len(pubkeys) == (n - OP_1 + 1)
         assert redeemScript[0] == OP_CHECKMULTISIG
+        
+        return "p2sh", signatures, pubkeys, address
     else:
         raise ScriptError("cannot parse unlocking script")
 
-        return "p2sh", signatures, pubkeys, address
+        
 
 def parse_locking_script( script ):
     # Returns type and address
-    if len(script) in [35, 67]:
+    if (script[-1] == OP_CHECKSIG) & (len(script) in [35, 67]):
         # Pay-to-Public-Key
-        pubkey, script = read_data( script )
-        assert (len(script) == 1) & (script[0] == OP_CHECKSIG)
-        return "p2pk", Address.from_pubkey( pubkey )
-    elif len(script) == 25:
+        pubkey, _ = read_data( script )
+        return "p2pk", Address.from_pubkey( pubkey ), None
+    elif ((script[0] == OP_DUP) & (script[1] == OP_HASH160) & 
+          (script[-2] == OP_EQUALVERIFY) & (script[-1] == OP_CHECKSIG)
+          & (len(script) == 25)):
         # Pay-to-Public-Key-Hash
-        assert ((script[0] == OP_DUP) & (script[1] == OP_HASH160) & 
-                (script[-2] == OP_EQUALVERIFY) & (script[-1] == OP_CHECKSIG))
         h, _ = read_data( script[2:-2] )
-        return "p2pkh", Address.from_pubkey_hash( h )
-    elif len(script) == 23:
+        return "p2pkh", Address.from_pubkey_hash( h ), None
+    elif ((script[0] == OP_HASH160) & (script[-1] == OP_EQUAL) & (len(script) == 23)):
         # Pay-to-Script-Hash
-        assert (script[0] == OP_HASH160) & (script[-1] == OP_EQUAL)
         h, _ = read_data( script[1:-1] )
-        return "p2sh", Address.from_script_hash( h )
+        return "p2sh", Address.from_script_hash( h ), None
+    elif (script[0] == OP_RETURN) & (len(script) <= 221):
+        address = "d-" + sha256( script.hex().encode('utf-8') )[:16].hex()
+        protocol, prefix, content = parse_return_script( script )
+        return "data", address, [protocol, prefix, content]
     else:
-        raise ScriptError("cannot parse unlocking script")
+        raise ScriptError("cannot parse locking script")
 
     
     
