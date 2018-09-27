@@ -32,6 +32,7 @@ OP_RETURN = 0x6a
   
 # Stack
 OP_DUP = 0x76
+OP_SWAP = 0x7c
 
 # Bitwise logic
 OP_EQUAL = 0x87
@@ -41,6 +42,19 @@ OP_EQUALVERIFY = 0x88
 OP_HASH160 = 0xa9
 OP_CHECKSIG = 0xac
 OP_CHECKMULTISIG = 0xae
+
+# Locktime
+OP_CHECKLOCKTIMEVERIFY = 0xb1
+OP_CHECKSEQUENCEVERIFY = 0xb2
+
+def op_number( n ):
+    '''Returns the corresponding op code for a number: from OP_0 to OP_16. '''
+    assert (0x00 <= n <= 0x10)
+    return (OP_1 + n - 1) if n != 0 else OP_0
+
+def read_op_number( n ):
+    assert (n == 0) | (OP_1 <= n <= 0x60)
+    return (n - OP_1 + 1) if n != 0 else 0
 
 def push_data(data):
     '''Returns the op codes to push the data on the stack.'''
@@ -91,8 +105,8 @@ def multisig_locking_script(pubkeys, m):
     n = len(pubkeys)
     if not 1 <= m <= n <= 3:
         raise ScriptError('{:d}-of-{:d} multisig script not possible'.format(m, n))
-    OP_m = OP_1 + m - 1
-    OP_n = OP_1 + n - 1
+    OP_m = op_number( m )
+    OP_n = op_number( n )
     serpubkeys = bytes().join( push_data( pubkey.to_ser() ) for pubkey in pubkeys)
     return ( bytes([OP_m]) + serpubkeys + bytes([OP_n, OP_CHECKMULTISIG]) )
 
@@ -127,11 +141,16 @@ def unlocking_script( addr, pubkeys, signatures ):
                 + push_data( redeemScript ))
     
 DATA_MEMO = 0x6d
-DATA_MATTER = 0x9b
+DATA_MATTER = 0x9d
+DATA_BLOCKPRESS = 0x8d
 
-def return_script( content, prefix, protocol ):
+def return_script( content, prefix=None, protocol=None ):
     ''' Content (list of str) '''
-    assert all( isinstance(d, str) for d in content)
+    for i, d in enumerate(content):
+        if isinstance(d, Address):
+            content[i] = d.h.hex()
+            
+    assert all( isinstance(d, (str, int)) for d in content)
     
     if protocol is None:
         if prefix is None:
@@ -139,20 +158,41 @@ def return_script( content, prefix, protocol ):
         else:
             script = push_data( prefix ) + bytes().join( push_data(d) for d in content )
     elif protocol == "memo":
+        script = bytes([OP_RETURN]) + push_data( bytes([DATA_MEMO, prefix]) )
         
-        if prefix in (0x01, 0x02, 0x05, 0x06):
-            return( bytes([protocol, prefix]) +
-                bytes.join( push_data( d.encode('utf-8') ) for d in content ) )
+        if prefix in (0x01, 0x02, 0x05, 0x0a, 0x0c, 0x0d, 0x0e):
+            return( script +
+                bytes().join( push_data( d.encode('utf-8') ) for d in content ) )
         elif prefix in (0x03, 0x04, 0x06, 0x07):
-            return( bytes([protocol, prefix]) +
-                    bytes.fromhex( content[0] ) +
-                    bytes.join( push_data( d.encode('utf-8') ) for d in content[1:] ) )
+            return( script +
+                    push_data( bytes.fromhex( content[0] ) ) +
+                    bytes().join( push_data( d.encode('utf-8') ) for d in content[1:] ) )
+        elif prefix == 0x10: # Poll
+            poll_type = op_number( content[0] )
+            option_count = op_number( content[1] ) 
+            return ( script + bytes( [poll_type, option_count] ) +
+                     bytes().join( push_data( d.encode('utf-8') ) for d in content[2:] ) )
+        elif prefix in (0x13, 0x14): # Poll option, poll vote
+            return( script + push_data( bytes.fromhex( content[0] )[::-1] ) +
+                    bytes().join( push_data( d.encode('utf-8') ) for d in content[1:] ) )
+            
         else:
             raise ScriptError("cannot serialize data script")
+    elif protocol == "matter": 
+        script = bytes([OP_RETURN]) + push_data( bytes([DATA_MATTER, prefix]) )
+        ###
+        if prefix in (0x03, 0x04, 0x05): # profile name, picture, bio
+            return ( script +
+                bytes().join( push_data( d.encode('utf-8') ) for d in content ) )
+        elif prefix in (0x01, 0x02, 0x07, 0x08): # header and chunk for post and comment
+            return (script + push_data( bytes.fromhex( content[0] ) ) + 
+                    push_data( bytes([content[1]]) ) +
+                    bytes().join( push_data( d.encode('utf-8') ) for d in content[2:] ) )
+        else:
+            raise ScriptError("cannot serialize data script")
+        
     else:
         raise ScriptError("cannot serialize data script")
-                   
-    
     
     
 def parse_return_script( script ):
@@ -165,32 +205,58 @@ def parse_return_script( script ):
     if protocol == "memo": 
         if prefix == 0x01: # set name
             name, script = read_data( script )
-            return protocol, prefix, [name.decode('utf-8')]
+            return [name.decode('utf-8')], prefix, protocol
         elif prefix == 0x02: # post
             post, script = read_data( script )
-            return protocol, prefix, [post.decode('utf-8')]
+            return [post.decode('utf-8')], prefix, protocol
         elif prefix == 0x03: # reply
             txhash, script = read_data( script )
             reply, script = read_data( script )
-            return protocol, prefix, [txhash[::-1].hex(), reply.decode('utf-8')]
+            return [txhash[::-1].hex(), reply.decode('utf-8')], prefix, protocol
         elif prefix == 0x04: # like
             txhash, script = read_data( script )
-            return protocol, prefix, [txhash[::-1].hex()]
+            return [txhash[::-1].hex()], prefix, protocol
         elif prefix == 0x05: # set profile text
             profile, script = read_data( script )
-            return protocol, prefix, [profile.decode('utf-8')]
+            return [profile.decode('utf-8')], prefix, protocol
         elif prefix == 0x06: # follow 
             address, script = read_data( script )
-            return protocol, prefix, [Address.from_pubkey_hash( address )]
+            return [Address.from_pubkey_hash( address )], prefix, protocol
         elif prefix == 0x07: # unfollow
             address, script = read_data( script )
-            return protocol, prefix, [Address.from_pubkey_hash( address )]
+            return [Address.from_pubkey_hash( address )], prefix, protocol
+        elif prefix == 0x0a: # set profile picture
+            url, script = read_data( script )
+            return [url.decode('utf-8')], prefix, protocol
         elif prefix == 0x0c: # topic post
             topic, script = read_data( script )
             post, script = read_data( script )
-            return protocol, prefix, [topic.decode('utf-8'), post.decode('utf-8')]
+            return [topic.decode('utf-8'), post.decode('utf-8')], prefix, protocol
+        elif prefix == 0x0d: # topic follow 
+            topic, script = read_data( script )
+            return [topic], prefix, protocol
+        elif prefix == 0x0e: # topic unfollow 
+            topic, script = read_data( script )
+            return [topic], prefix, protocol
+        elif prefix == 0x10: # poll
+            poll_type = read_op_number( script[0] )
+            option_count = read_op_number( script[1] )
+            question, script = read_data( script[2:] )
+            return [poll_type, option_count, question.decode('utf-8')], prefix, protocol
+        elif prefix == 0x13: # poll option
+            txhash, script = read_data( script )
+            option, script = read_data( script )
+            return [txhash[::-1].hex(), option.decode('utf-8')], prefix, protocol
+        elif prefix == 0x14: # poll vote
+            txhash, script = read_data( script )
+            comment, script = read_data( script )
+            return [txhash[::-1].hex(), comment.decode('utf-8')], prefix, protocol
         else:
-            return None, None, None
+            content = []
+            while script != bytes():
+                d, script = read_data( script )
+                content.append( d )
+            return content, None, protocol
     elif protocol == "matter": 
         if prefix == 0x01: # post header
             checksum, script = read_data( script )
@@ -199,24 +265,56 @@ def parse_return_script( script ):
             if script != bytes():
                 title, script = read_data( script )
             
-            tags = []
+            content = [ checksum.hex(), chunk_count, title.decode('utf-8') ]
             while script != bytes():
                 tag, script = read_data( script )
-                tags.append( tag )
-            return protocol, prefix, [checksum, chunkCount, title.decode('utf-8'), ]
+                content.append( tag )
+            return content, prefix, protocol
         elif prefix == 0x02: # post chunk
-            return protocol, prefix, None
+            headerTxId, script = read_data( script )
+            header_txid = headerTxId.hex()
+            chunkId, script = read_data( script ) 
+            chunk_id = int.from_bytes( chunkId, 'little' )
+            text, script = read_data( script )            
+            return [header_txid, chunk_id, text.decode('utf-8')], prefix, protocol
         elif prefix == 0x03: # set profile name
-            return protocol, prefix, None
-        elif prefix == 0x04: # set avatar
-            return protocol, prefix, None
+            name, script = read_data( script )
+            return [name.decode('utf-8')], prefix, protocol
+        elif prefix == 0x04: # set profile picture
+            url, script = read_data( script )
+            return [url.decode('utf-8')], prefix, protocol
         elif prefix == 0x05: # set profile bio
-            return protocol, prefix, None
-        else:
-            return None, None, None
-    else:
-        return None, None, None
+            bio, script = read_data( script )
+            return [bio.decode('utf-8')], prefix, protocol
+        elif prefix == 0x07: # comment header
+            checksum, script = read_data( script )
+            chunkCount, script = read_data( script )
+            chunk_count = int.from_bytes( chunkCount, 'little' )
             
+            content = [ checksum.hex(), chunk_count ]
+            if (chunk_count == 0) & (script != bytes()):
+                text, script = read_data( script )
+                content.append( text )
+            return content, prefix, protocol
+        elif prefix == 0x08: # comment chunk
+            headerTxId, script = read_data( script )
+            header_txid = headerTxId.hex()
+            chunkId, script = read_data( script ) 
+            chunk_id = int.from_bytes( chunkId, 'little' )
+            text, script = read_data( script )            
+            return [header_txid, chunk_id, text.decode('utf-8')], prefix, protocol
+        else:
+            content = []
+            while script != bytes():
+                d, script = read_data( script )
+                content.append( d )
+            return content, None, protocol
+    else:
+        content = []
+        while script != bytes():
+            d, script = read_data( script )
+            content.append( d )
+        return content, None, None
     
 
 def parse_unlocking_script( script ):
@@ -279,8 +377,8 @@ def parse_locking_script( script ):
         return "p2sh", Address.from_script_hash( h ), None
     elif (script[0] == OP_RETURN) & (len(script) <= 221):
         address = "d-" + sha256( script.hex().encode('utf-8') )[:16].hex()
-        protocol, prefix, content = parse_return_script( script )
-        return "data", address, [protocol, prefix, content]
+        content, prefix, protocol = parse_return_script( script )
+        return "data", address, [content, prefix, protocol]
     else:
         raise ScriptError("cannot parse locking script")
 

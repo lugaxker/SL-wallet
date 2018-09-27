@@ -79,7 +79,7 @@ class Transaction:
                 txout['address'] = address
             if data:
                 assert t == "data"
-                txout['data'] = {'protocol':data[0], 'prefix':data[1], 'content':data[2]}
+                txout['data'] = {'protocol':data[2], 'prefix':data[1], 'content':data[0]}
             txouts.append( txout )
         
         locktime, raw = read_bytes(raw, 4, int, 'little')
@@ -125,7 +125,7 @@ class Transaction:
         elif txout['type'] == "p2pk":
             raise TransactionError("cannot serialize p2pk output")
         elif txout['type'] == "data":
-            
+            lockingScript = return_script( txout['data']['content'], txout['data']['prefix'], txout['data']['protocol'] )
         lockingScriptSize = var_int( len(lockingScript) )
         return nAmount + lockingScriptSize + lockingScript
         
@@ -335,5 +335,27 @@ if __name__ == '__main__':
     raw = bytes.fromhex( memop )
     tx = Transaction.from_serialized( raw )
     print( tx )
-    #if tx.txid():
-        #print("id {}".format(tx.txid().hex()))
+    assert tx.serialize() == raw
+    if tx.txid():
+        print("id {}".format(tx.txid().hex()))
+
+    print()
+    print("- memo follow")    
+    memof = "0100000001d7fcb2f152172df9620bab76878e8a82c5f5c5f9ec41121517efc28db6fb6aac000000006b483045022100831e4453369d623ed9ce45e9562e2425b22a2fd36c65b41fc2e992bbb8a09b1902205c5f2356c4f93b4bfbdc5cd531c8b61fb92892b57b752a8a5e68267f3b266a5e41210283b0c52ec1204fcd3c309c76f5a8b544f76fcac21da65612978295f4497f5831ffffffff0281d60100000000001976a9148b4a849ceae4b20d3aa578d55a942587a9f89f2888ac0000000000000000196a026d06145cda42316423273794f74723cc9ba3511d95cb5200000000"
+    raw = bytes.fromhex( memof )
+    tx = Transaction.from_serialized( raw )
+    print( tx )
+    assert tx.serialize() == raw
+    if tx.txid():
+        print("id {}".format(tx.txid().hex()))
+
+    
+    print()
+    print("- memo poll")   
+    memopoll = "01000000012096bf69bce20d6d526d80247255824c88819e602222659946218bdcacaa4300000000006b483045022100988574553cf4ed5318d85a0de1bde8fa8c97b87cd0c9fd996ce5cc5d557656e60220198145587dec1eb6e6f72bd6dd8b50e5a7caedb3f5eb131640afac72da6f4a514121028294487ef2730cda7463de03956a7191fe7ae513324b64d598915d85c89332a3ffffffff0225530100000000001976a91495cbaf02622c030960a0cdf4c601061ab38a7d7188ac0000000000000000a56a026d1051524c9d492077616e7420746f2073656520686f77206d616e792070656f706c652063757272656e746c7920757365204d656d6f206f6e20612064617920746f206461792062617369732e2053746174732070616765206f6e6c792073686f777320746f74616c2075736572732e20536f2077697468207468617420696e206d696e642c20686f77206f6674656e20646f20796f75207669736974204d656d6f3f00000000"
+    raw = bytes.fromhex( memopoll )
+    tx = Transaction.from_serialized( raw )
+    print( tx )
+    assert tx.serialize() == raw
+    if tx.txid():
+        print("id {}".format(tx.txid().hex()))

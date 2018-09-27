@@ -111,7 +111,7 @@ class Network(threading.Thread):
     
     TX_RELAY = False
     MAX_MESSAGE_SIZE = 1 << 20 # 1 MiB
-    MAX_PEERS = 10
+    MAX_PEERS = 5
     MAX_PEER_ADDRESSES = 100
     
     BLOCKCHAIN_SYNC_WAIT_TIME = 5
@@ -259,7 +259,9 @@ class Network(threading.Thread):
         next_peer.headers_request = True
         next_peer.headers_request_time = time.time()
         
-        
+    def broadcast_transaction(self, tx):
+        ''' Sends transaction to random peers. '''
+        pass
             
     def request_tx(self, peer, txid):
         pass
@@ -288,8 +290,6 @@ class Network(threading.Thread):
         pass
     
     # TODO: listening socket
-    
-    # TODO: broadcast_transaction
 
 class Peer(threading.Thread):
     ''' Peer manager. Manages connexion to network peer.'''

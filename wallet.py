@@ -163,12 +163,11 @@ class WalletError(Exception):
 class Wallet:
     ''' Single keystore wallet. '''
     
-    def __init__(self, keystore=KeyStore(), recv_addresses=[], chng_addresses=[], utxos=[], transactions = [], block_height=0):
+    def __init__(self, keystore=KeyStore(), recv_addresses=[], chng_addresses=[], utxos=[], block_height=0):
         self.keystore = keystore
         self.recv_addresses = recv_addresses
         self.chng_addresses = chng_addresses
         self.utxos = utxos
-        self.transactions = transactions
         self.history = {}
         self.network = Network()
         
@@ -201,7 +200,6 @@ class Wallet:
             chng_addresses = [ Address.from_string( a ) for a in winfo['addresses']['change'] ]
             utxos = [{'txid':o['txid'], 'index':o['index'], 'value':o['value'], 
                       'address': Address.from_string( o['address'] )} for o in winfo['utxos']]
-            transactions = [ {'txid': bytes.fromhex( tx['txid'] ), 'raw': bytes.fromhex( tx['raw']), 'sent': tx['sent'] } for tx in winfo['transactions'] ]
             block_height = winfo['block_height']
             
             print("wallet loaded")
@@ -209,15 +207,14 @@ class Wallet:
         except:
             raise WalletError('cannot load wallet')
         
-        return self( keystore, recv_addresses, chng_addresses, utxos, transactions, block_height )
+        return self( keystore, recv_addresses, chng_addresses, utxos, block_height )
     
     def save(self, filename="wallet.json" ):
         ''' Save wallet into a json file.
         mnemonic: mnemonic phrase
         keypair(s): account(s)
         addresses: {"receiving": [addresses], "change": [addresses]} (cash without hrp)
-        utxos: [{'txid': hex, 'index': int, 'value': int, 'address': str}]
-        transactions: [{'txid', 'rawtx'}] '''    
+        utxos: [{'txid': hex, 'index': int, 'value': int, 'address': str}]'''
         ksinfo = {}
         ksinfo['mnemonic'] = self.keystore.mnemonic
         ksinfo['passphrase'] = self.keystore.passphrase
@@ -232,7 +229,6 @@ class Wallet:
         winfo['addresses'] = addrinfo
         utxos = self.utxos
         winfo['utxos'] = [ {'txid':o['txid'], 'index':o['index'], 'value':o['value'], 'address':o['address'].to_cash()} for o in self.utxos ]
-        winfo['transactions'] = [ {'txid': tx['txid'].hex(), 'raw': tx['raw'].hex(), 'sent': tx['sent'] } for tx in self.transactions]
         
         winfo['block_height'] = self.network.block_height
         
@@ -325,11 +321,6 @@ class Wallet:
         fee = tx.get_fee()
         
         return rawtx, txid, fee
-    
-    def add_new_transaction(self, raw, txid):
-        tx = {'txid': txid, 'raw': raw, 'sent': True}
-        if tx not in self.transactions:
-            self.transactions.append( tx )
         
     def compute_max_amount(self):
         ''' For P2PKH inputs and compressed public keys only. '''

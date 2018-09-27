@@ -168,10 +168,10 @@ class SlwWindow(QMainWindow):
                 
                 txsent = False
                 if msgBox == QMessageBox.Yes:
+                    # TODO: use network.broadcast_transaction()
                     for p in self.wallet.network.peers:
                         if p.state == 'connected':
                             p.send_tx( rawtx )
-                            #self.wallet.add_new_transaction( rawtx, txid )
                             txsent = True
                             #break
                 print("transaction has been sent: {}".format(txid.hex()) if txsent else "could not send transaction")
