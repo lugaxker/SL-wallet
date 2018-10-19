@@ -31,6 +31,7 @@ OP_VERIFY = 0x69
 OP_RETURN = 0x6a
   
 # Stack
+OP_DROP = 0x75
 OP_DUP = 0x76
 OP_SWAP = 0x7c
 
@@ -378,7 +379,7 @@ def parse_locking_script( script ):
     elif (script[0] == OP_RETURN) & (len(script) <= 221):
         address = "d-" + sha256( script.hex().encode('utf-8') )[:16].hex()
         content, prefix, protocol = parse_return_script( script )
-        return "data", address, [content, prefix, protocol]
+        return "nulldata", address, [content, prefix, protocol]
     else:
         raise ScriptError("cannot parse locking script")
 

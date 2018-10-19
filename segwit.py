@@ -142,7 +142,7 @@ if __name__ == '__main__':
     wifkeys_multisig = ["KzwQjFQPytv5x6w2cLdF4BSweGVCPEt8b8HbcuTi8e75LRQfw94L",
                         "Ky4yk7uTBZ1EDbqyVfkvoZXURpWdRCxTpCERZb4gkn67fY8kK95R",
                         "Kz3Htg8mSfC997qkBxpVCdxYhEoRcFj5ikUjE96ipVAJPou7MwRD"]
-    pubkeys =  [PublicKey.from_prvkey( wk ).to_ser() for wk in wifkeys_multisig ]
+    pubkeys =  [PublicKey.from_prvkey( wk ) for wk in wifkeys_multisig ]
     print()
     print("--- 2-of-3 multisig address ---")
     print("Private keys")
@@ -156,3 +156,30 @@ if __name__ == '__main__':
     p2wsh_addr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, redeem_script_hash )
     print("SegWit Address (P2WSH)", p2wsh_addr)
     
+    print("-----")
+    h = bytes.fromhex("914a1f77b4bf763b901655e52e83784d5c605053")
+    witver = 0
+    witness_script = bytes([witver]) + push_data( h )
+    a = Address.from_script(witness_script).to_legacy()
+    print(a)
+
+    redeem_script_hash = bytes.fromhex("04d3da43f6750398281ed128d23bc6b6daa90e3c7431d15acaee052b0e6351be")
+    p2wsh_addr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, redeem_script_hash )
+    print("SegWit Address (P2WSH)", p2wsh_addr)
+
+    h = bytes.fromhex("2a44a5921e7e62e84e4478c2dd836dbfc9732bae87")
+    witver = 0
+    script = bytes([witver]) + push_data( h )
+    a = Address.from_script(script).to_legacy()
+    print(a)
+
+    redeem_script = bytes.fromhex("522102472b25609c0089b28774009b187c6558adc03115b81cb9387ecd14f4d49a62ca2103dbc2f6b9337ff9565916733c8614d8bb673104c5c8e3bdd5453b04cd8dd22e2e52ae")
+    hash_redeem_script = sha256( redeem_script )
+    print(hash_redeem_script.hex(), "=?", redeem_script_hash.hex(), ("Oui" if hash_redeem_script == redeem_script_hash else "Non"))
+
+    redeem_script_2 = bytes.fromhex("6321035ddbc3ec6a9459ab05e20af1451d80deff37941095b2003ecc27c0235a8dc4d067029000b2752102d7c52ff0e21c77a848fe5b2eb1cd68a1ad4d84dfeacd2c1ec141d66f4364772868ac")
+    hash_redeem_script_2 = sha256( redeem_script_2 )
+    p2wsh_addr_2 = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, hash_redeem_script_2 )
+    print(p2wsh_addr_2)
+    print()
+        

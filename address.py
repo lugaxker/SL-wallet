@@ -264,7 +264,7 @@ class Address:
             return self.from_pubkey_hash( hash160( pubkey.to_ser() ) )
         elif isinstance(pubkey, bytes): 
             return self.from_pubkey_hash( hash160( pubkey ) )
-        elif isinstance(pubkey, hex):
+        elif isinstance(pubkey, str):
             return self.from_pubkey_hash( hash160( bytes.fromhex(pubkey) ) )
         else:
             raise AddressError("wrong type of public key")

@@ -73,12 +73,12 @@ class Transaction:
             scriptsize, raw = read_var_int( raw )
             lockingScript, raw = read_bytes(raw, scriptsize, bytes, 'big')
             t, address, data = parse_locking_script( lockingScript )
-            if t in ("p2pk", "p2pkh", "p2sh", "data"):
+            if t in ("p2pk", "p2pkh", "p2sh", "nulldata"):
                 txout['type'] = t
             if address:
                 txout['address'] = address
             if data:
-                assert t == "data"
+                assert t == "nulldata"
                 txout['data'] = {'protocol':data[2], 'prefix':data[1], 'content':data[0]}
             txouts.append( txout )
         
@@ -124,7 +124,7 @@ class Transaction:
             lockingScript = locking_script( txout['address'] )
         elif txout['type'] == "p2pk":
             raise TransactionError("cannot serialize p2pk output")
-        elif txout['type'] == "data":
+        elif txout['type'] == "nulldata":
             lockingScript = return_script( txout['data']['content'], txout['data']['prefix'], txout['data']['protocol'] )
         lockingScriptSize = var_int( len(lockingScript) )
         return nAmount + lockingScriptSize + lockingScript
