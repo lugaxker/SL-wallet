@@ -31,15 +31,53 @@ OP_VERIFY = 0x69
 OP_RETURN = 0x6a
   
 # Stack
+OP_TOALTSTACK = 0x6b
+OP_FROMALTSTACK = 0x6c
+OP_IFDUP = 0x73
+OP_DEPTH = 0x74
 OP_DROP = 0x75
 OP_DUP = 0x76
+OP_NIP = 0x77
+OP_OVER = 0x78
+OP_PICK = 0x79
+OP_ROLL = 0x7a
+OP_ROT = 0x7b
 OP_SWAP = 0x7c
+OP_TUCK = 0x7d
+OP_2DROP = 0x6d
+OP_2DUP = 0x6e
+OP_3DUP = 0x6f
+OP_2OVER = 0x70
+OP_2ROT = 0x71
+OP_2SWAP = 0x72
+
+# Splice
+#OP_CAT = 0x7e
+#OP_SUBSTR = 0x7f
+#OP_LEFT = 0x80
+#OP_RIGHT = 0x81
+OP_SIZE = 0x82
 
 # Bitwise logic
+OP_INVERT = 0x83
+OP_AND = 0x84
+OP_OR = 0x85
+OP_XOR = 0x86
 OP_EQUAL = 0x87
 OP_EQUALVERIFY = 0x88
+
+# Arithmetic
+OP_1ADD = 0x8b
+OP_1SUB = 0x8c
+OP_NEGATE = 0x8f
+OP_ABS = 0x90
+OP_NOT = 0x91
+OP_0NOTEQUAL = 0x92
+OP_ADD = 0x93
  
 # Crypto
+OP_SHA1 = 0xa7
+OP_SHA256 = 0xa8
 OP_HASH160 = 0xa9
 OP_CHECKSIG = 0xac
 OP_CHECKMULTISIG = 0xae
@@ -140,7 +178,9 @@ def unlocking_script( addr, pubkeys, signatures ):
         assert addr.h == hash160(redeemScript) 
         return (multisig_unlocking_script(signatures) 
                 + push_data( redeemScript ))
-    
+
+# TODO: create memo.py and matter.py
+
 DATA_MEMO = 0x6d
 DATA_MATTER = 0x9d
 DATA_BLOCKPRESS = 0x8d
@@ -383,6 +423,18 @@ def parse_locking_script( script ):
     else:
         raise ScriptError("cannot parse locking script")
 
+if __name__ == '__main__':
+    
+    import sys
+    if sys.version_info < (3, 5):
+        sys.exit("Error: Must be using Python 3.5 or higher")
+        
+        
+    print("SHA-1 collision bounty")
+    script = bytes( [OP_2DUP, OP_EQUAL, OP_NOT, OP_VERIFY, OP_SHA256, OP_SWAP, OP_SHA256, OP_EQUAL] )
+    address = Address.from_script( script )
+    print("script", script.hex() )
+    print("address", address.to_legacy() )
     
     
     
