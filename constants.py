@@ -5,6 +5,8 @@ class Constants:
     '''Bitcoin Cash network constants.'''
     
     PROTOCOL_VERSION = 70015
+    TX_VERSION = 1 # Version 2 enables BIP-68
+    SEQUENCE_NUMBER = 0xffffffff - 1
     
     BIP32_HARDENED = 0x80000000
     CASH_P2PKH = 0x00
@@ -43,6 +45,8 @@ class Constants:
     @classmethod
     def set_mainnet(self):
         ''' Main network. '''
+        self.testnet = False
+        
         self.WIF_PREFIX = 0x80
         self.LEGACY_P2PKH = 0x00
         self.LEGACY_P2SH = 0x05
@@ -52,8 +56,6 @@ class Constants:
         self.XPUB_HEADER = 0x0488b21e
         
         self.BIP44_TYPE = 0x91
-        
-        self.SEQUENCE_NUMBER = 0xffffffff - 1
         
         self.NETWORK_MAGIC = 0xe8f3e1e3
         self.DEFAULT_PORT = 8333
@@ -69,6 +71,8 @@ class Constants:
     @classmethod
     def set_testnet(self):
         ''' Test network. '''
+        self.testnet = True
+        
         self.WIF_PREFIX = 0xef
         self.LEGACY_P2PKH = 0x6f
         self.LEGACY_P2SH = 0xc4
@@ -83,3 +87,4 @@ class Constants:
         self.DEFAULT_PORT = 18333
         
 Constants.set_mainnet()
+#Constants.set_testnet()

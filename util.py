@@ -55,6 +55,79 @@ def var_int_size(i):
     else:
         raise ValueError("Integer is too big")
     
+OP_PUSHDATA1 = 0x4c
+OP_PUSHDATA2 = 0x4d
+OP_PUSHDATA4 = 0x4e
+
+def push_data(data):
+    '''Returns the op codes to push the data on the stack.'''
+        
+    # data must be a bytes string
+    assert isinstance(data, (bytes, bytearray))
+
+    n = len(data)
+    if n < OP_PUSHDATA1:
+        return bytes([n]) + data
+    if n <= 0xff:
+        return bytes([OP_PUSHDATA1, n]) + data
+    if n <= 0xffff:
+        return bytes([OP_PUSHDATA2]) + n.to_bytes(2, 'little') + data
+    if n <= 0xffffffff:
+        return bytes([OP_PUSHDATA4]) + n.to_bytes(4, 'little') + data
+    else:
+        raise ValueError("Data is too long")
+    
+def push_data_size(n):
+    OP_PUSHDATA1 = 0x4c
+    if n < OP_PUSHDATA1:
+        return 1
+    elif n <= 0xff:
+        return 2
+    elif n <= 0xffff:
+        return 3
+    elif n <= 0xffffffff:
+        return 5
+    else:
+        raise ValueError("Data is too long")
+    
+def read_data( b ):
+    if b[0] < OP_PUSHDATA1:
+        n, b = read_bytes( b, 1, int, 'little')
+    elif b[0] == OP_PUSHDATA1:
+        n, b = read_bytes( b[1:], 1, int, 'little') 
+    elif b[0] == OP_PUSHDATA2:
+        n, b = read_bytes( b[1:], 2, int, 'little') 
+    elif b[0] == OP_PUSHDATA4:
+        n, b = read_bytes( b[1:], 4, int, 'little')
+    else:
+        raise ValueError("cannot read data")
+    return read_bytes( b, n, bytes, 'big') 
+
+def op_number( n ):
+    '''Returns the corresponding op code for a number: from OP_0 to OP_16. '''
+    assert (0x00 <= n <= 0x10)
+    return (OP_1 + n - 1) if n != 0 else OP_0
+
+def read_op_number( n ):
+    assert (n == 0) | (OP_1 <= n <= 0x60)
+    return (n - OP_1 + 1) if n != 0 else 0
+
+def script_number( n ):
+    ''' Positive script number. '''
+    if ( 0x80000000 <= n < 0x100000000 ):
+        # Only for nLocktime
+        return n.to_bytes(5, 'little')
+    elif ( 0x800000 <= n < 0x80000000 ):
+        return n.to_bytes(4, 'little')
+    elif ( 0x8000 <= n < 0x800000 ):
+        return n.to_bytes(3, 'little')
+    elif ( 0x80 <= n < 0x8000 ):
+        return n.to_bytes(2, 'little')
+    elif ( 0 <= n < 0x80 ):
+        return n.to_bytes(1, 'little')
+    else:
+        raise ScriptError("ScriptNum error") 
+    
 # Price
 
 import json

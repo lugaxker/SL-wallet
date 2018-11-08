@@ -3,8 +3,9 @@
 
 from crypto import (sha256, hash160, PublicKey)
 from address import Address
+from memo import (create_memo_script, parse_memo_script)
 
-from util import read_bytes
+from util import (read_bytes, push_data, read_data, op_number, read_op_number, script_number)
 
 from constants import Constants
 
@@ -74,70 +75,22 @@ OP_ABS = 0x90
 OP_NOT = 0x91
 OP_0NOTEQUAL = 0x92
 OP_ADD = 0x93
+OP_SUB = 0x94
  
 # Crypto
 OP_SHA1 = 0xa7
 OP_SHA256 = 0xa8
 OP_HASH160 = 0xa9
 OP_CHECKSIG = 0xac
+OP_CHECKSIGVERIFY = 0xad
 OP_CHECKMULTISIG = 0xae
+OP_CHECKMULTISIGVERIFY = 0xaf
 
 # Locktime
 OP_CHECKLOCKTIMEVERIFY = 0xb1
 OP_CHECKSEQUENCEVERIFY = 0xb2
 
-def op_number( n ):
-    '''Returns the corresponding op code for a number: from OP_0 to OP_16. '''
-    assert (0x00 <= n <= 0x10)
-    return (OP_1 + n - 1) if n != 0 else OP_0
 
-def read_op_number( n ):
-    assert (n == 0) | (OP_1 <= n <= 0x60)
-    return (n - OP_1 + 1) if n != 0 else 0
-
-def push_data(data):
-    '''Returns the op codes to push the data on the stack.'''
-        
-    # data must be a bytes string
-    assert isinstance(data, (bytes, bytearray))
-
-    n = len(data)
-    if n < OP_PUSHDATA1:
-        return bytes([n]) + data
-    if n <= 0xff:
-        return bytes([OP_PUSHDATA1, n]) + data
-    if n <= 0xffff:
-        return bytes([OP_PUSHDATA2]) + n.to_bytes(2, 'little') + data
-    if n <= 0xffffffff:
-        return bytes([OP_PUSHDATA4]) + n.to_bytes(4, 'little') + data
-    else:
-        raise ValueError("Data is too long")
-    
-def push_data_size(n):
-    OP_PUSHDATA1 = 0x4c
-    if n < OP_PUSHDATA1:
-        return 1
-    elif n <= 0xff:
-        return 2
-    elif n <= 0xffff:
-        return 3
-    elif n <= 0xffffffff:
-        return 5
-    else:
-        raise ValueError("Data is too long")
-    
-def read_data( b ):
-    if b[0] < OP_PUSHDATA1:
-        n, b = read_bytes( b, 1, int, 'little')
-    elif b[0] == OP_PUSHDATA1:
-        n, b = read_bytes( b[1:], 1, int, 'little') 
-    elif b[0] == OP_PUSHDATA2:
-        n, b = read_bytes( b[1:], 2, int, 'little') 
-    elif b[0] == OP_PUSHDATA4:
-        n, b = read_bytes( b[1:], 4, int, 'little')
-    else:
-        raise ValueError("cannot read data")
-    return read_bytes( b, n, bytes, 'big') 
     
 def multisig_locking_script(pubkeys, m):
     ''' Returns m-of-n multisig locking script (also called redeem script). '''
@@ -153,6 +106,46 @@ def multisig_unlocking_script(sigs):
     ''' Returns m-of-n multisig unlocking script. '''
     return ( bytes([OP_0]) + b''.join(push_data(sig) for sig in sigs) )
 
+def simple_cltv_locking_script( locktime, addr ):
+    assert (locktime < 0x100000000)
+    nLocktime = script_number( locktime )
+    return ( push_data( nLocktime ) + 
+             bytes([OP_CHECKLOCKTIMEVERIFY, OP_DROP, OP_DUP, OP_HASH160]) + 
+             push_data( addr.h ) + 
+             bytes([OP_EQUALVERIFY, OP_CHECKSIG]) )
+
+def simple_cltv_unlocking_script( pubkey, sig ):
+    return ( push_data( sig ) + push_data( pubkey.to_ser() ) )
+
+def expiring_tip_locking_script( locktime, tip_addr, refund_addr ):
+    assert (locktime < 0x100000000)
+    assert isinstance( tip_addr, Address )
+    assert isinstance( refund_addr, Address )
+    nLocktime = script_number( locktime )
+    return ( bytes([OP_IF, OP_DUP, OP_HASH160]) + 
+             push_data( tip_addr.h ) +
+             bytes([OP_ELSE]) + 
+             push_data( nLocktime ) + 
+             bytes([OP_CHECKLOCKTIMEVERIFY, OP_DROP, OP_DUP, OP_HASH160]) + 
+             push_data( refund_addr.h ) + 
+             bytes([OP_ENDIF, OP_EQUALVERIFY, OP_CHECKSIG]) )
+
+def expiring_tip_unlocking_script( choice, pubkey, sig ):
+    assert isinstance( pubkey, PublicKey)
+    assert isinstance( sig, (bytes, bytearray) ) 
+    if choice == 'claim':
+        return push_data( sig ) + push_data( pubkey.to_ser() ) + bytes([OP_1])
+    elif choice == 'refund':
+        return push_data( sig ) + push_data( pubkey.to_ser() ) + bytes([OP_0])
+    else:
+        raise ScriptError("wrong choice")
+    
+def x_plus_3_equal_5_locking_script():
+    return bytes([op_number(3), OP_ADD, op_number(5), OP_EQUAL])
+
+def x_plus_3_equal_5_unlocking_script():
+    return bytes([op_number(2)])
+
 def locking_script( addr ):
     assert isinstance( addr, Address )
     if addr.kind == Constants.CASH_P2PKH:
@@ -164,20 +157,39 @@ def locking_script( addr ):
                 + bytes([OP_EQUAL]))
     return None
 
-def unlocking_script( addr, pubkeys, signatures ):
+def p2pkh_unlocking_script( addr, pubkeys, signatures ):
     assert isinstance( addr, Address )
+    assert addr.kind == Constants.CASH_P2PKH
     assert isinstance( pubkeys[0], PublicKey )
     assert isinstance( signatures[0], (bytes, bytearray) ) 
-    if addr.kind == Constants.CASH_P2PKH:
-        sig = signatures[0]
-        pubkey = pubkeys[0]
-        assert addr == Address.from_pubkey( pubkey )
-        return (push_data( sig ) + push_data( pubkey.to_ser() ))
-    elif addr.kind == Constants.CASH_P2SH:
-        redeemScript = multisig_locking_script(pubkeys, len(signatures))
-        assert addr.h == hash160(redeemScript) 
+    return (push_data( signatures[0] ) + push_data( pubkeys[0].to_ser() ))
+
+def p2sh_unlocking_script( addr, redeem_script, pubkeys, signatures ):
+    assert isinstance( addr, Address )
+    assert addr.kind == Constants.CASH_P2SH
+    assert isinstance( pubkeys[0], PublicKey )
+    assert isinstance( signatures[0], (bytes, bytearray) ) 
+    assert isinstance( redeem_script, (bytes, bytearray) )
+    assert hash160(redeem_script) == addr.h
+    # TODO: parse script
+    
+    if redeem_script[-1] == OP_CHECKMULTISIG:
+        # Multisig output to unlock
+        assert redeem_script == multisig_locking_script(pubkeys, len(signatures))
         return (multisig_unlocking_script(signatures) 
-                + push_data( redeemScript ))
+                + push_data( redeem_script ))
+    
+    elif (len(redeem_script) in [55,56,57,58,59]) & (redeem_script[-28] == OP_CHECKLOCKTIMEVERIFY):
+        # Expiring tip
+        choice = 'refund'
+        print("expiring tip: {} !".format(choice))
+        return ( expiring_tip_unlocking_script( 'refund', pubkeys[0], signatures[0])
+                    + push_data( redeem_script ) )
+        
+    else:
+        raise ScriptError("cannot parse script")
+    
+    
 
 # TODO: create memo.py and matter.py
 
@@ -199,26 +211,7 @@ def return_script( content, prefix=None, protocol=None ):
         else:
             script = push_data( prefix ) + bytes().join( push_data(d) for d in content )
     elif protocol == "memo":
-        script = bytes([OP_RETURN]) + push_data( bytes([DATA_MEMO, prefix]) )
-        
-        if prefix in (0x01, 0x02, 0x05, 0x0a, 0x0c, 0x0d, 0x0e):
-            return( script +
-                bytes().join( push_data( d.encode('utf-8') ) for d in content ) )
-        elif prefix in (0x03, 0x04, 0x06, 0x07):
-            return( script +
-                    push_data( bytes.fromhex( content[0] ) ) +
-                    bytes().join( push_data( d.encode('utf-8') ) for d in content[1:] ) )
-        elif prefix == 0x10: # Poll
-            poll_type = op_number( content[0] )
-            option_count = op_number( content[1] ) 
-            return ( script + bytes( [poll_type, option_count] ) +
-                     bytes().join( push_data( d.encode('utf-8') ) for d in content[2:] ) )
-        elif prefix in (0x13, 0x14): # Poll option, poll vote
-            return( script + push_data( bytes.fromhex( content[0] )[::-1] ) +
-                    bytes().join( push_data( d.encode('utf-8') ) for d in content[1:] ) )
-            
-        else:
-            raise ScriptError("cannot serialize data script")
+        script = bytes([OP_RETURN]) + create_memo_script(prefix, content)
     elif protocol == "matter": 
         script = bytes([OP_RETURN]) + push_data( bytes([DATA_MATTER, prefix]) )
         ###
@@ -240,64 +233,11 @@ def parse_return_script( script ):
     ''' Returns protocol, prefix and content. '''
     ret, script = read_bytes( script, 1, int, 'little' )
     assert len(script) <= 220
-    meta, script = read_data( script )
-    protocol = {DATA_MEMO: "memo", DATA_MATTER: "matter"}[meta[0]]
-    prefix = meta[1]
-    if protocol == "memo": 
-        if prefix == 0x01: # set name
-            name, script = read_data( script )
-            return [name.decode('utf-8')], prefix, protocol
-        elif prefix == 0x02: # post
-            post, script = read_data( script )
-            return [post.decode('utf-8')], prefix, protocol
-        elif prefix == 0x03: # reply
-            txhash, script = read_data( script )
-            reply, script = read_data( script )
-            return [txhash[::-1].hex(), reply.decode('utf-8')], prefix, protocol
-        elif prefix == 0x04: # like
-            txhash, script = read_data( script )
-            return [txhash[::-1].hex()], prefix, protocol
-        elif prefix == 0x05: # set profile text
-            profile, script = read_data( script )
-            return [profile.decode('utf-8')], prefix, protocol
-        elif prefix == 0x06: # follow 
-            address, script = read_data( script )
-            return [Address.from_pubkey_hash( address )], prefix, protocol
-        elif prefix == 0x07: # unfollow
-            address, script = read_data( script )
-            return [Address.from_pubkey_hash( address )], prefix, protocol
-        elif prefix == 0x0a: # set profile picture
-            url, script = read_data( script )
-            return [url.decode('utf-8')], prefix, protocol
-        elif prefix == 0x0c: # topic post
-            topic, script = read_data( script )
-            post, script = read_data( script )
-            return [topic.decode('utf-8'), post.decode('utf-8')], prefix, protocol
-        elif prefix == 0x0d: # topic follow 
-            topic, script = read_data( script )
-            return [topic], prefix, protocol
-        elif prefix == 0x0e: # topic unfollow 
-            topic, script = read_data( script )
-            return [topic], prefix, protocol
-        elif prefix == 0x10: # poll
-            poll_type = read_op_number( script[0] )
-            option_count = read_op_number( script[1] )
-            question, script = read_data( script[2:] )
-            return [poll_type, option_count, question.decode('utf-8')], prefix, protocol
-        elif prefix == 0x13: # poll option
-            txhash, script = read_data( script )
-            option, script = read_data( script )
-            return [txhash[::-1].hex(), option.decode('utf-8')], prefix, protocol
-        elif prefix == 0x14: # poll vote
-            txhash, script = read_data( script )
-            comment, script = read_data( script )
-            return [txhash[::-1].hex(), comment.decode('utf-8')], prefix, protocol
-        else:
-            content = []
-            while script != bytes():
-                d, script = read_data( script )
-                content.append( d )
-            return content, None, protocol
+    prefix_bytes, script = read_data( script )
+    protocol = {DATA_MEMO: "memo", DATA_MATTER: "matter"}[prefix_bytes[0]]
+    if protocol == "memo":
+        assert script[0] == OP_RETURN
+        prefix, content = parse_memo_script( script[1:] )
     elif protocol == "matter": 
         if prefix == 0x01: # post header
             checksum, script = read_data( script )
@@ -398,8 +338,6 @@ def parse_unlocking_script( script ):
     else:
         raise ScriptError("cannot parse unlocking script")
 
-        
-
 def parse_locking_script( script ):
     # Returns type and address
     if (script[-1] == OP_CHECKSIG) & (len(script) in [35, 67]):
@@ -428,13 +366,22 @@ if __name__ == '__main__':
     import sys
     if sys.version_info < (3, 5):
         sys.exit("Error: Must be using Python 3.5 or higher")
-        
-        
+    
     print("SHA-1 collision bounty")
-    script = bytes( [OP_2DUP, OP_EQUAL, OP_NOT, OP_VERIFY, OP_SHA256, OP_SWAP, OP_SHA256, OP_EQUAL] )
+    script = bytes( [OP_2DUP, OP_EQUAL, OP_NOT, OP_VERIFY, OP_SHA1, OP_SWAP, OP_SHA1, OP_EQUAL] )
     address = Address.from_script( script )
     print("script", script.hex() )
     print("address", address.to_legacy() )
     
+    script = bytes( [op_number(3), OP_ADD, op_number(5), OP_EQUAL] )
+    address = Address.from_script( script )
+    print("script", script.hex() )
+    print("address", address.to_legacy() )
     
+    # 
     
+    # P2MS address
+    script = "5121032df7cde5c76b9d8dc36317c74952cc3fdc6d0afb30580ea3b63394497469d47a51ae"
+    address = "m-" + sha256( script.encode('utf-8') )[:16].hex()
+    print("script", script)
+    print("P2MS address", address)

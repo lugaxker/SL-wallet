@@ -1,6 +1,55 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+
+'''
+
+  Transaction : version - inputs - outputs - locktime 
+
+  -- Version --
+  
+  Currently version 1 or 2.
+  Version 2 enables BIP-68
+   
+  -- Inputs --
+  
+  Input = outpoint + unlocking script + sequence
+   Outpoint = previous output txid + previous output index
+   We also need the previous output value to sign the transaction
+   If outpoint is (0x00...00, 0xffffffff), then the input type is coinbase
+    and the unlocking script does not matter.
+   From the unlocking script, we get:
+    - the type
+    - the pubkeys
+    - the signatures
+    - other things
+   Sequence number is used as a relative time lock if enabled (BIP-68)
+   
+  Input type:
+   - coinbase
+   - p2pk
+   - p2ms
+   - p2pkh
+   - p2sh: needs the redeem script to be unlocked
+   
+  -- Outputs --
+  
+  Output = amount + locking script
+   From the locking script we get:
+    - the type
+    - the address, etc.
+  
+  Output type:
+   - nulldata: return script
+   - p2pkh
+   - p2sh
+   
+  -- Locktime --
+  
+  Absolute time lock
+
+'''
+
 from crypto import (dsha256, PrivateKey, PublicKey)
 from address import *
 from script import *
@@ -10,7 +59,11 @@ from util import (read_bytes, var_int, read_var_int, var_int_size)
 from constants import *
 
 DEFAULT_SEQUENCE_NUMBER = 0xffffffff - 1
+SIGHASH_FORKID = 0x40
+FORKID = 0x00000000
 BCH_SIGHASH_TYPE = 0x41
+#BCH_SIGHASH_TYPE = 0xff000141
+#0x01 | (SIGHASH_FORKID + (FORKID << 8))
 
 class TransactionError(Exception):
     '''Exception used for Transaction errors.'''
@@ -19,7 +72,7 @@ class Transaction:
     ''' Transaction. 
     input . '''
     
-    def __init__(self, version = 1, txins = [], txouts = [], locktime = 0):
+    def __init__(self, version = Constants.TX_VERSION, txins = [], txouts = [], locktime = 0):
         self._inputs = txins
         self._outputs = txouts
         self.version = version
@@ -28,11 +81,11 @@ class Transaction:
     
     @classmethod
     def from_inputs(self, txins, locktime=0):
-        return self( 1, txins, [], locktime )
+        return self( Constants.TX_VERSION, txins, [], locktime )
     
     @classmethod
     def from_outputs(self, txouts, locktime=0):
-        return self( 1, [], txouts, locktime )
+        return self( Constants.TX_VERSION, [], txouts, locktime )
     
     @classmethod
     def from_serialized(self, raw):
@@ -99,7 +152,7 @@ class Transaction:
         if input_addr.kind == Constants.CASH_P2PKH:
             return locking_script( input_addr )
         elif input_addr.kind == Constants.CASH_P2SH:
-            return multisig_locking_script( txin['pubkeys'], txin['nsigs'] )
+            return txin['redeem_script']
         return None
     
     def serialize_outpoint(self, txin):
@@ -112,7 +165,12 @@ class Transaction:
         + unlocking script (scriptSig) with its size + sequence number. '''
         outpoint  = self.serialize_outpoint(txin)
         signatures = [bytes.fromhex(sig) for sig in txin['signatures']]
-        unlockingScript = unlocking_script(txin['address'], txin['pubkeys'], signatures)
+        if txin['address'].kind == Constants.CASH_P2PKH:
+            unlockingScript = p2pkh_unlocking_script(txin['address'], txin['pubkeys'], signatures)
+        elif txin['address'].kind == Constants.CASH_P2SH:
+            unlockingScript = p2sh_unlocking_script(txin['address'], txin['redeem_script'], txin['pubkeys'], signatures)
+        else:
+            raise TransactionError("cannot parse type")
         unlockingScriptSize = var_int( len( unlockingScript ) )
         nSequence = txin['sequence'].to_bytes(4,'little')
         return outpoint + unlockingScriptSize + unlockingScript + nSequence

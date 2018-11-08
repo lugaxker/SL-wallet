@@ -118,7 +118,7 @@ if __name__ == '__main__':
         sys.exit("Error: Must be using Python 3.5 or higher")
     
     # Private key
-    wifkey = "KzwQjFQPytv5x6w2cLdF4BSweGVCPEt8b8HbcuTi8e75LRQfw94L"
+    wifkey = "Kzczf8E4oq8MLakhRS479gpZpSe2e6u2xErKHQNqpeFMPEK4irtc"
     
     # Public key and address (Public Key Hash)
     pubkey = PublicKey.from_prvkey( wifkey ).to_ser()
