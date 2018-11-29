@@ -4,7 +4,8 @@
 from crypto import (sha256, hash160, PrivateKey, PublicKey)
 from base58 import Base58
 from address import Address
-from script import push_data, multisig_locking_script
+from util import push_data
+from script import multisig_locking_script
 
 class SegWitAddr:
     """ Reference implementation for Bech32 and segwit addresses. """

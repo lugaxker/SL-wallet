@@ -103,6 +103,9 @@ def read_data( b ):
         raise ValueError("cannot read data")
     return read_bytes( b, n, bytes, 'big') 
 
+OP_0 = 0x00
+OP_1 = 0x51
+
 def op_number( n ):
     '''Returns the corresponding op code for a number: from OP_0 to OP_16. '''
     assert (0x00 <= n <= 0x10)
@@ -115,7 +118,7 @@ def read_op_number( n ):
 def script_number( n ):
     ''' Positive script number. '''
     if ( 0x80000000 <= n < 0x100000000 ):
-        # Only for nLocktime
+        # Only for absolute locktime
         return n.to_bytes(5, 'little')
     elif ( 0x800000 <= n < 0x80000000 ):
         return n.to_bytes(4, 'little')

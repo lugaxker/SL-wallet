@@ -24,6 +24,11 @@
     - the signatures
     - other things
    Sequence number is used as a relative time lock if enabled (BIP-68)
+    Transaction version must greater than or equal to 2 to enable relative time locks.
+    If bit (1 << 31) is set, the relative time lock is disable.
+    If bit (1 << 22) is not set, the value is interpreted as a number of blocks. 
+    If it is set, the value interpreted as units of 512 seconds.
+    Value is only set by 16 bits (mask: 0x0000ffff)
    
   Input type:
    - coinbase
@@ -58,11 +63,10 @@ from util import (read_bytes, var_int, read_var_int, var_int_size)
 
 from constants import *
 
-DEFAULT_SEQUENCE_NUMBER = 0xffffffff - 1
 SIGHASH_FORKID = 0x40
 FORKID = 0x00000000
-BCH_SIGHASH_TYPE = 0x41
-#BCH_SIGHASH_TYPE = 0xff000141
+#BCH_SIGHASH_TYPE = 0x41
+BCH_SIGHASH_TYPE = 0xff000141
 #0x01 | (SIGHASH_FORKID + (FORKID << 8))
 
 class TransactionError(Exception):
@@ -101,20 +105,30 @@ class Transaction:
             txin['index'], raw = read_bytes(raw, 4, int, 'little')
             scriptsize, raw = read_var_int( raw )
             unlockingScript, raw = read_bytes(raw, scriptsize, bytes, 'big')
+            txin['unlocking_script'] = unlockingScript.hex()
             if (txin['txid'] == "00"*32) & (txin['index'] == 0xffffffff):
                 # Coinbase input
                 txin['type'] = "coinbase"
             else:
-                t, signatures, pubkeys, address = parse_unlocking_script( unlockingScript )
-                if t in ("p2pk", "p2pkh", "p2sh"):
-                    txin['type'] = t
-                if signatures:
+                t, signatures, pubkeys, address, redeem_script = parse_unlocking_script( unlockingScript )
+                txin['type'] = t
+                if t == "p2pk":
                     txin['signatures'] = [sig.hex() for sig in signatures]
-                    txin['nsigs'] = len(signatures)
-                if pubkeys:
+                elif t == "p2pkh":
+                    txin['signatures'] = [sig.hex() for sig in signatures]
                     txin['pubkeys'] = pubkeys
-                if address:
                     txin['address'] = address
+                elif t == "p2sh":
+                    # only p2sh-ms for the moment
+                    txin['signatures'] = [sig.hex() for sig in signatures]
+                    txin['pubkeys'] = pubkeys
+                    txin['address'] = address
+                    txin['redeem_script'] = redeem_script
+                elif t == "p2ms":
+                    raise TransactionError("we do not parse p2ms outputs")
+                else:
+                    raise TransactionError("cannot parse unlocking script")
+                txin['nsigs'] = len(signatures)
             txin['sequence'], raw = read_bytes(raw, 4, int, 'little')
             txins.append( txin )
         
@@ -125,14 +139,19 @@ class Transaction:
             txout['value'], raw = read_bytes(raw, 8, int, 'little')
             scriptsize, raw = read_var_int( raw )
             lockingScript, raw = read_bytes(raw, scriptsize, bytes, 'big')
+            txout['locking_script'] = lockingScript.hex()
             t, address, data = parse_locking_script( lockingScript )
-            if t in ("p2pk", "p2pkh", "p2sh", "nulldata"):
-                txout['type'] = t
-            if address:
+            txout['type'] = t                
+            if t in ("p2pkh", "p2sh"):
                 txout['address'] = address
-            if data:
-                assert t == "nulldata"
-                txout['data'] = {'protocol':data[2], 'prefix':data[1], 'content':data[0]}
+            elif t == "p2pk":
+                txout['address'] = address
+            elif t == "nulldata":
+                txout['data'] = {'prefix':data[1], 'content':data[0]}
+            elif t == "p2ms":
+                raise TransactionError("we do not parse p2pk and p2ms outputs")
+            else:
+                raise TransactionError("cannot parse unlocking script")
             txouts.append( txout )
         
         locktime, raw = read_bytes(raw, 4, int, 'little')
@@ -183,7 +202,7 @@ class Transaction:
         elif txout['type'] == "p2pk":
             raise TransactionError("cannot serialize p2pk output")
         elif txout['type'] == "nulldata":
-            lockingScript = return_script( txout['data']['content'], txout['data']['prefix'], txout['data']['protocol'] )
+            lockingScript = nulldata_script( txout['data']['content'], txout['data']['prefix'] )
         lockingScriptSize = var_int( len(lockingScript) )
         return nAmount + lockingScriptSize + lockingScript
         

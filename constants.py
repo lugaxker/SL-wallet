@@ -5,8 +5,14 @@ class Constants:
     '''Bitcoin Cash network constants.'''
     
     PROTOCOL_VERSION = 70015
-    TX_VERSION = 1 # Version 2 enables BIP-68
-    SEQUENCE_NUMBER = 0xffffffff - 1
+    TX_VERSION = 1 # Version 2 enables sequence time locks (BIP-68)
+    
+    # Sequence flags
+    SEQUENCE_FINAL = 0xffffffff
+    SEQUENCE_LOCKTIME_DISABLE_FLAG = (1 << 31)
+    SEQUENCE_LOCKTIME_TYPE_FLAG = (1 << 22)
+    
+    SEQUENCE_NUMBER = SEQUENCE_FINAL - 1
     
     BIP32_HARDENED = 0x80000000
     CASH_P2PKH = 0x00
