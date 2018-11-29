@@ -131,6 +131,17 @@ def script_number( n ):
     else:
         raise ScriptError("ScriptNum error") 
     
+def sequence_number( n, t ):
+    assert ( 0 <= n < 0x10000 )
+    assert isinstance(t, bool)
+    if not t:
+        # Blocks
+        return n
+    else:
+        # Units of 512 seconds
+        return (1 << 22) + n
+        
+    
 # Price
 
 import json

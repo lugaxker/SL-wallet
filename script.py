@@ -122,7 +122,7 @@ def simple_locktime_locking_script( locktime ):
     return ( push_data( script_number( locktime ) ) + 
              bytes([OP_CHECKLOCKTIMEVERIFY, OP_DROP]) )
 
-def simple_sequence_locking_script( sequence ):
+def simple_sequence_locking_script( sequence_locktime ):
     ''' Simple anyone-can-spend CHECKSEQUENCEVERIFY locking script. '''
     return ( push_data( script_number( sequence ) ) + 
              bytes([OP_CHECKSEQUENCEVERIFY, OP_DROP]) )
