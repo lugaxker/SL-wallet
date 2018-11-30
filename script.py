@@ -106,24 +106,14 @@ def multisig_unlocking_script(sigs):
     ''' Returns m-of-n multisig unlocking script. '''
     return ( bytes([OP_0]) + b''.join(push_data(sig) for sig in sigs) )
 
-def simple_cltv_locking_script( locktime, addr ):
-    assert (locktime < 0x100000000)
-    nLocktime = script_number( locktime )
-    return ( push_data( nLocktime ) + 
-             bytes([OP_CHECKLOCKTIMEVERIFY, OP_DROP, OP_DUP, OP_HASH160]) + 
-             push_data( addr.h ) + 
-             bytes([OP_EQUALVERIFY, OP_CHECKSIG]) )
-
-def simple_cltv_unlocking_script( pubkey, sig ):
-    return ( push_data( sig ) + push_data( pubkey.to_ser() ) )
-
 def simple_locktime_locking_script( locktime ):
     ''' Simple anyone-can-spend CHECKLOCKTIMEVERIFY locking script. '''
     return ( push_data( script_number( locktime ) ) + 
              bytes([OP_CHECKLOCKTIMEVERIFY, OP_DROP]) )
 
-def simple_sequence_locking_script( sequence_locktime ):
+def simple_sequence_locking_script( sequence ):
     ''' Simple anyone-can-spend CHECKSEQUENCEVERIFY locking script. '''
+    assert not (sequence & Constants.SEQUENCE_LOCKTIME_DISABLE_FLAG)
     return ( push_data( script_number( sequence ) ) + 
              bytes([OP_CHECKSEQUENCEVERIFY, OP_DROP]) )
 
@@ -131,27 +121,25 @@ def anyone_can_spend_unlocking_script():
     ''' Anyone-can-spend unlocking script. '''
     return bytes([OP_TRUE])
 
-# TODO : simplify expiring tip scripts
-def expiring_tip_locking_script( locktime, tip_addr, refund_addr ):
+def expiring_tip_locking_script( locktime, claim_pubkey, refund_pubkey ):
     assert (locktime < 0x100000000)
-    assert isinstance( tip_addr, Address )
-    assert isinstance( refund_addr, Address )
-    nLocktime = script_number( locktime )
-    return ( bytes([OP_IF, OP_DUP, OP_HASH160]) + 
-             push_data( tip_addr.h ) +
+    assert isinstance( claim_pubkey, PublicKey )
+    assert isinstance( refund_pubkey, PublicKey )
+    assert (claim_pubkey.is_compressed() & claim_pubkey.is_compressed()), "public keys must be compressed"
+    return ( bytes([OP_IF]) + 
+             push_data( claim_pubkey.to_ser() ) +
              bytes([OP_ELSE]) + 
-             push_data( nLocktime ) + 
-             bytes([OP_CHECKLOCKTIMEVERIFY, OP_DROP, OP_DUP, OP_HASH160]) + 
-             push_data( refund_addr.h ) + 
-             bytes([OP_ENDIF, OP_EQUALVERIFY, OP_CHECKSIG]) )
+             push_data( script_number( locktime ) ) + 
+             bytes([OP_CHECKLOCKTIMEVERIFY, OP_DROP]) + 
+             push_data( refund_pubkey.to_ser() ) + 
+             bytes([OP_ENDIF, OP_CHECKSIG]) )
 
-def expiring_tip_unlocking_script( choice, pubkey, sig ):
-    assert isinstance( pubkey, PublicKey)
+def expiring_tip_unlocking_script( choice, sig ):
     assert isinstance( sig, (bytes, bytearray) ) 
     if choice == 'claim':
-        return push_data( sig ) + push_data( pubkey.to_ser() ) + bytes([OP_1])
+        return push_data( sig ) + bytes([OP_1])
     elif choice == 'refund':
-        return push_data( sig ) + push_data( pubkey.to_ser() ) + bytes([OP_0])
+        return push_data( sig ) + bytes([OP_0])
     else:
         raise ScriptError("wrong choice")
 
@@ -167,12 +155,12 @@ def locking_script( addr ):
                 + bytes([OP_EQUAL]))
     return None
 
-def p2pkh_unlocking_script( addr, pubkeys, signatures ):
-    assert isinstance( addr, Address )
-    assert addr.kind == Constants.CASH_P2PKH
-    assert isinstance( pubkeys[0], PublicKey )
-    assert isinstance( signatures[0], (bytes, bytearray) ) 
-    return (push_data( signatures[0] ) + push_data( pubkeys[0].to_ser() ))
+#def p2pkh_unlocking_script( addr, pubkeys, signatures ):
+    #assert isinstance( addr, Address )
+    #assert addr.kind == Constants.CASH_P2PKH
+    #assert isinstance( pubkeys[0], PublicKey )
+    #assert isinstance( signatures[0], (bytes, bytearray) ) 
+    #return (push_data( signatures[0] ) + push_data( pubkeys[0].to_ser() ))
 
 def p2sh_unlocking_script( addr, redeem_script, pubkeys, signatures ):
     assert isinstance( addr, Address )
@@ -189,11 +177,11 @@ def p2sh_unlocking_script( addr, redeem_script, pubkeys, signatures ):
         return (multisig_unlocking_script(signatures) 
                 + push_data( redeem_script ))
     
-    elif (len(redeem_script) in [55,56,57,58,59]) & (redeem_script[-28] == OP_CHECKLOCKTIMEVERIFY):
+    elif (len(redeem_script) in [75,76,77,78,79,80]) & (redeem_script[-38] == OP_CHECKLOCKTIMEVERIFY):
         # Expiring tip
         choice = 'refund'
         print("expiring tip: {} !".format(choice))
-        return ( expiring_tip_unlocking_script( 'refund', pubkeys[0], signatures[0])
+        return ( expiring_tip_unlocking_script( 'refund', signatures[0])
                     + push_data( redeem_script ) )
         
     else:

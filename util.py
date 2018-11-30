@@ -55,6 +55,18 @@ def var_int_size(i):
     else:
         raise ValueError("Integer is too big")
     
+OP_0 = 0x00
+OP_1 = 0x51
+
+def op_number( n ):
+    '''Returns the corresponding op code for a number: from OP_0 to OP_16. '''
+    assert (0x00 <= n <= 0x10)
+    return (OP_1 + n - 1) if n != 0 else OP_0
+
+def read_op_number( n ):
+    assert (n == 0) | (OP_1 <= n <= 0x60)
+    return (n - OP_1 + 1) if n != 0 else 0
+    
 OP_PUSHDATA1 = 0x4c
 OP_PUSHDATA2 = 0x4d
 OP_PUSHDATA4 = 0x4e
@@ -66,6 +78,8 @@ def push_data(data):
     assert isinstance(data, (bytes, bytearray))
 
     n = len(data)
+    if n == 1 & (int.from_bytes(data, 'big') <= 0x10):
+        return bytes([op_number( int.from_bytes(data, 'big') )])
     if n < OP_PUSHDATA1:
         return bytes([n]) + data
     if n <= 0xff:
@@ -103,18 +117,6 @@ def read_data( b ):
         raise ValueError("cannot read data")
     return read_bytes( b, n, bytes, 'big') 
 
-OP_0 = 0x00
-OP_1 = 0x51
-
-def op_number( n ):
-    '''Returns the corresponding op code for a number: from OP_0 to OP_16. '''
-    assert (0x00 <= n <= 0x10)
-    return (OP_1 + n - 1) if n != 0 else OP_0
-
-def read_op_number( n ):
-    assert (n == 0) | (OP_1 <= n <= 0x60)
-    return (n - OP_1 + 1) if n != 0 else 0
-
 def script_number( n ):
     ''' Positive script number. '''
     if ( 0x80000000 <= n < 0x100000000 ):
@@ -132,14 +134,15 @@ def script_number( n ):
         raise ScriptError("ScriptNum error") 
     
 def sequence_number( n, t ):
-    assert ( 0 <= n < 0x10000 )
-    assert isinstance(t, bool)
-    if not t:
+    assert t in ('blocks', 'seconds')
+    if t == 'blocks':
         # Blocks
+        assert ( 0 <= n <= 0xffff )
         return n
     else:
-        # Units of 512 seconds
-        return (1 << 22) + n
+        # Seconds
+        assert ( 0 <= n <= (0xffff << 9) )
+        return (1 << 22) | (n >> 9)
         
     
 # Price

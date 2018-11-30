@@ -5,12 +5,13 @@ class Constants:
     '''Bitcoin Cash network constants.'''
     
     PROTOCOL_VERSION = 70015
-    TX_VERSION = 1 # Version 2 enables sequence time locks (BIP-68)
+    TX_VERSION = 2 # Version 2 enables sequence time locks (BIP-68)
     
     # Sequence flags
     SEQUENCE_FINAL = 0xffffffff
     SEQUENCE_LOCKTIME_DISABLE_FLAG = (1 << 31)
     SEQUENCE_LOCKTIME_TYPE_FLAG = (1 << 22)
+    SEQUENCE_LOCKTIME_GRANULARITY = 9
     
     SEQUENCE_NUMBER = SEQUENCE_FINAL - 1
     
@@ -92,5 +93,5 @@ class Constants:
         self.NETWORK_MAGIC = 0xf4f3e5f4
         self.DEFAULT_PORT = 18333
         
-Constants.set_mainnet()
-#Constants.set_testnet()
+#Constants.set_mainnet()
+Constants.set_testnet()

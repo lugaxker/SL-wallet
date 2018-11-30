@@ -65,8 +65,8 @@ from constants import *
 
 SIGHASH_FORKID = 0x40
 FORKID = 0x00000000
-#BCH_SIGHASH_TYPE = 0x41
-BCH_SIGHASH_TYPE = 0xff000141
+BCH_SIGHASH_TYPE = 0x41 # ok after nov 15th 2018
+#BCH_SIGHASH_TYPE = 0xff000141
 #0x01 | (SIGHASH_FORKID + (FORKID << 8))
 
 class TransactionError(Exception):
@@ -183,13 +183,16 @@ class Transaction:
         ''' Serializes an input: outpoint (previous output tx id + previous output index)
         + unlocking script (scriptSig) with its size + sequence number. '''
         outpoint  = self.serialize_outpoint(txin)
-        signatures = [bytes.fromhex(sig) for sig in txin['signatures']]
-        if txin['address'].kind == Constants.CASH_P2PKH:
-            unlockingScript = p2pkh_unlocking_script(txin['address'], txin['pubkeys'], signatures)
-        elif txin['address'].kind == Constants.CASH_P2SH:
-            unlockingScript = p2sh_unlocking_script(txin['address'], txin['redeem_script'], txin['pubkeys'], signatures)
+        if 'unlocking_script' in txin:
+            unlockingScript = txin['unlocking_script']
         else:
-            raise TransactionError("cannot parse type")
+            signatures = [bytes.fromhex(sig) for sig in txin['signatures']]
+            if txin['address'].kind == Constants.CASH_P2PKH:
+                unlockingScript = p2pkh_unlocking_script(txin['address'], txin['pubkeys'], signatures)
+            elif txin['address'].kind == Constants.CASH_P2SH:
+                unlockingScript = p2sh_unlocking_script(txin['address'], txin['redeem_script'], txin['pubkeys'], signatures)
+            else:
+                raise TransactionError("cannot parse type")
         unlockingScriptSize = var_int( len( unlockingScript ) )
         nSequence = txin['sequence'].to_bytes(4,'little')
         return outpoint + unlockingScriptSize + unlockingScript + nSequence
@@ -248,10 +251,10 @@ class Transaction:
             return False
         
         # Signatures
-        for txin in self._inputs:
-            if not 'signatures' in txin:
+        for txin in self._inputs:            
+            if not (('unlocking_script' in txin) | ('signatures' in txin)):
                 return False
-            else:
+            elif 'signatures' in txin:
                 sigs = txin['signatures']
                 if txin['nsigs'] != len(sigs):
                     return False
