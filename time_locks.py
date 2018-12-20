@@ -263,34 +263,5 @@ if __name__ == '__main__':
     print("  Success (cd08fafbf1356007af79856ce122573bba169b4199bc49ed8eae8f06dc7c1fb6 on bch testnet)")
     print()
     
-    
-    
-    
-    
-    
-    ## Building transaction
-    #prevout_txid = "50883f023c5c962d25c7e14b91662a1316a065208f7fb0276943026661040d7b"
-    #prevout_index = 0
-    #prevout_value = 100000
-    #output_address = claim_address
-    #fee = 1000
-    
-    #txin = {}
-    #txin['address'] = contract_address
-    #txin['txid'] = prevout_txid
-    #txin['index'] = prevout_index
-    #txin['value'] = prevout_value
-    #txin['sequence'] = Constants.SEQUENCE_NUMBER
-    #txin['pubkeys'] = [ refund_pubkey ]
-    #txin['nsigs'] = 1
-    #txin['redeem_script'] = redeemScript
-    
-    #txout = {}
-    #txout['address'] = output_address
-    #txout['value'] = prevout_value - fee
-    #txout['type'] = 'p2pkh'
-    
-    #tx = Transaction( Constants.TX_VERSION, [txin], [txout], 1266507)
-    #tx.sign( [ refund_prvkey ] )
-    #print(tx.serialize().hex())
+    print("seq", hex(sequence_number(86528, 'seconds')))
     
