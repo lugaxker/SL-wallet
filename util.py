@@ -77,6 +77,7 @@ def push_data(data):
     # data must be a bytes string
     assert isinstance(data, (bytes, bytearray))
 
+    # minimal pushdata must be enforced
     n = len(data)
     if n == 1 & (int.from_bytes(data, 'big') <= 0x10):
         return bytes([op_number( int.from_bytes(data, 'big') )])
@@ -113,6 +114,8 @@ def read_data( b ):
         n, b = read_bytes( b[1:], 2, int, 'little') 
     elif b[0] == OP_PUSHDATA4:
         n, b = read_bytes( b[1:], 4, int, 'little')
+    elif (b[0] == 0) | (OP_1 <= b[0] <= 0x60):
+        n, b = read_op_number( b[0] ), b[1:]
     else:
         raise ValueError("cannot read data")
     return read_bytes( b, n, bytes, 'big') 

@@ -37,6 +37,7 @@
    - p2pkh
    - p2sh: needs the redeem script to be unlocked
    
+   
   -- Outputs --
   
   Output = amount + locking script
@@ -63,11 +64,18 @@ from util import (read_bytes, var_int, read_var_int, var_int_size)
 
 from constants import *
 
+SIGHASH_SINGLE = 0x03
 SIGHASH_FORKID = 0x40
+SIGHASH_ANYONECANPAY = 0x80
+
+''' FORKID is used to implement automatic replay protection. It is supposed be
+    equal to 0 for the current version of Bitcoin Cash protocol. '''
 FORKID = 0x00000000
-BCH_SIGHASH_TYPE = 0x41 # ok after nov 15th 2018
-#BCH_SIGHASH_TYPE = 0xff000141
+
+BCH_SIGHASH_TYPE = 0x41
 #0x01 | (SIGHASH_FORKID + (FORKID << 8))
+
+# TODO: Create TransactionOutput class? How outputs are managed in other implementations?
 
 class TransactionError(Exception):
     '''Exception used for Transaction errors.'''
@@ -147,7 +155,7 @@ class Transaction:
             elif t == "p2pk":
                 txout['address'] = address
             elif t == "nulldata":
-                txout['data'] = {'prefix':data[1], 'content':data[0]}
+                txout['data'] = data
             elif t == "p2ms":
                 raise TransactionError("we do not parse p2pk and p2ms outputs")
             else:
@@ -184,7 +192,7 @@ class Transaction:
         + unlocking script (scriptSig) with its size + sequence number. '''
         outpoint  = self.serialize_outpoint(txin)
         if 'unlocking_script' in txin:
-            unlockingScript = txin['unlocking_script']
+            unlockingScript = bytes.fromhex(txin['unlocking_script'])
         else:
             signatures = [bytes.fromhex(sig) for sig in txin['signatures']]
             if txin['address'].kind == Constants.CASH_P2PKH:
@@ -200,12 +208,15 @@ class Transaction:
     def serialize_output(self, txout):
         ''' Serializes an output: value + locking script (scriptPubkey) with its size.'''
         nAmount = txout['value'].to_bytes(8,'little')
-        if txout['type'] in ("p2pkh", "p2sh"):
-            lockingScript = locking_script( txout['address'] )
-        elif txout['type'] == "p2pk":
-            raise TransactionError("cannot serialize p2pk output")
-        elif txout['type'] == "nulldata":
-            lockingScript = nulldata_script( txout['data']['content'], txout['data']['prefix'] )
+        if 'locking_script' in txout:
+            lockingScript = bytes.fromhex(txout['locking_script'])
+        else:
+            if txout['type'] in ("p2pkh", "p2sh"):
+                lockingScript = locking_script( txout['address'] )
+            elif txout['type'] == "p2pk":
+                raise TransactionError("cannot serialize p2pk output")
+            elif txout['type'] == "nulldata":
+                lockingScript = nulldata_script( txout['data'] )
         lockingScriptSize = var_int( len(lockingScript) )
         return nAmount + lockingScriptSize + lockingScript
         

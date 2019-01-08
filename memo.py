@@ -4,7 +4,7 @@
 
 '''
 
-  Memo protocol at https://memo.cash/protocol
+  Memo protocol specifications at https://memo.cash/protocol
 
 '''
 

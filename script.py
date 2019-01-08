@@ -81,6 +81,7 @@ OP_SUB = 0x94
 OP_SHA1 = 0xa7
 OP_SHA256 = 0xa8
 OP_HASH160 = 0xa9
+OP_CODESEPARATOR = 0xab
 OP_CHECKSIG = 0xac
 OP_CHECKSIGVERIFY = 0xad
 OP_CHECKMULTISIG = 0xae
@@ -91,7 +92,17 @@ OP_CHECKDATASIGVERIFY = 0xbb
 # Locktime
 OP_CHECKLOCKTIMEVERIFY = 0xb1
 OP_CHECKSEQUENCEVERIFY = 0xb2
-    
+
+# Reserved words
+OP_NOP1 = 0xb0
+OP_NOP4 = 0xb3
+OP_NOP5 = 0xb4
+OP_NOP6 = 0xb5
+OP_NOP7 = 0xb6
+OP_NOP8 = 0xb7
+OP_NOP9 = 0xb8
+OP_NOP10 = 0xb9
+
 def multisig_locking_script(pubkeys, m):
     ''' Returns m-of-n multisig locking script (also called redeem script). '''
     n = len(pubkeys)
@@ -155,12 +166,12 @@ def locking_script( addr ):
                 + bytes([OP_EQUAL]))
     return None
 
-#def p2pkh_unlocking_script( addr, pubkeys, signatures ):
-    #assert isinstance( addr, Address )
-    #assert addr.kind == Constants.CASH_P2PKH
-    #assert isinstance( pubkeys[0], PublicKey )
-    #assert isinstance( signatures[0], (bytes, bytearray) ) 
-    #return (push_data( signatures[0] ) + push_data( pubkeys[0].to_ser() ))
+def p2pkh_unlocking_script( addr, pubkeys, signatures ):
+    assert isinstance( addr, Address )
+    assert addr.kind == Constants.CASH_P2PKH
+    assert isinstance( pubkeys[0], PublicKey )
+    assert isinstance( signatures[0], (bytes, bytearray) ) 
+    return (push_data( signatures[0] ) + push_data( pubkeys[0].to_ser() ))
 
 def p2sh_unlocking_script( addr, redeem_script, pubkeys, signatures ):
     assert isinstance( addr, Address )
@@ -195,105 +206,129 @@ DATA_MEMO = 0x6d
 DATA_MATTER = 0x9d
 DATA_BLOCKPRESS = 0x8d
 
-def nulldata_script( content, prefix=None ):
-    ''' Content (list of str)
-        Prefix (int) '''
-    for i, d in enumerate(content):
+# TODO
+def nulldata_script( data ):
+    ''' Data (temporary: int, bytes and str) '''
+    
+    for i, d in enumerate(data):
         if isinstance(d, Address):
-            content[i] = d.h.hex()
+            data[i] = d.h
         elif isinstance(d, PublicKey):
-            content[i] = d.to_ser(strtype=True)
-            
-    assert all( isinstance(d, (str, int)) for d in content )
+            data[i] = d.to_ser(strtype=False)
     
-    if prefix is None:
-        return bytes().join( push_data(d) for d in content )
-    elif 0x6d00 <= prefix <= 0x6dff: # memo
-        return bytes([OP_RETURN]) + create_memo_script(prefix, content)
-    elif 0x9d00 <= prefix <= 0x9dff: # matter 
-        script = bytes([OP_RETURN]) + push_data( prefix.to_bytes(2, 'big') )
-        ###
-        if prefix in (0x9d03, 0x9d04, 0x9d05): # profile name, picture, bio
-            return ( script +
-                bytes().join( push_data( d.encode('utf-8') ) for d in content ) )
-        elif prefix in (0x9d01, 0x9d02, 0x9d07, 0x9d08): # header and chunk for post and comment
-            return (script + push_data( bytes.fromhex( content[0] ) ) + 
-                    push_data( bytes([content[1]]) ) +
-                    bytes().join( push_data( d.encode('utf-8') ) for d in content[2:] ) )
+    script = bytes([OP_RETURN])
+    for d in data:
+        if isinstance(d, int):
+            script += push_data( script_number(d) )
+        elif isinstance(d, bytes):
+            script += push_data( d )
+        elif isinstance(d, str):
+            script += push_data( d.encode('utf-8') )
         else:
-            raise ScriptError("cannot serialize data script")
+            ScriptError("cannot serialize nulldata script")
+            
+    return script
+            
+            
+    #if prefix is None:
+        #return bytes().join( push_data(d) for d in content )
+    #elif 0x6d00 <= prefix <= 0x6dff: # memo
+        #return bytes([OP_RETURN]) + create_memo_script(prefix, content)
+    #elif 0x9d00 <= prefix <= 0x9dff: # matter 
+        #script = bytes([OP_RETURN]) + push_data( prefix.to_bytes(2, 'big') )
+        ####
+        #if prefix in (0x9d03, 0x9d04, 0x9d05): # profile name, picture, bio
+            #return ( script +
+                #bytes().join( push_data( d.encode('utf-8') ) for d in content ) )
+        #elif prefix in (0x9d01, 0x9d02, 0x9d07, 0x9d08): # header and chunk for post and comment
+            #return (script + push_data( bytes.fromhex( content[0] ) ) + 
+                    #push_data( bytes([content[1]]) ) +
+                    #bytes().join( push_data( d.encode('utf-8') ) for d in content[2:] ) )
+        #else:
+            #raise ScriptError("cannot serialize data script")
         
-    else:
-        raise ScriptError("cannot serialize data script")
+    #else:
+        #raise ScriptError("cannot serialize data script")
     
     
-def parse_nulldata_script( script ):
-    ''' Returns prefix and content. '''
-    ret, script = read_bytes( script, 1, int, 'little' )
+def read_nulldata_script( script ):
+    ''' Read nulldata script content. '''
+    assert len(script) <= 223
+    ret, script = read_bytes( script, 1, int, 'big' )
     assert ret == OP_RETURN
-    assert len(script) <= 220
-    protocol = {DATA_MEMO: "memo", DATA_MATTER: "matter"}[script[1]]
-    if protocol == "memo":
-        prefix, content = parse_memo_script( script )
-        return content, prefix
-    elif protocol == "matter": 
-        if prefix == 0x01: # post header
-            checksum, script = read_data( script )
-            chunkCount, script = read_data( script )
-            chunk_count = int.from_bytes( chunkCount, 'little' )
-            if script != bytes():
-                title, script = read_data( script )
+    
+    data = []
+    while script != bytes():
+        d, script = read_data( script )
+        data.append( d )
+    return data
+    
+#def parse_nulldata_script( script ):    
+    #ret, script = read_bytes( script, 1, int, 'little' )
+    #assert ret == OP_RETURN
+    #assert len(script) <= 220
+    #protocol = {DATA_MEMO: "memo", DATA_MATTER: "matter"}[script[1]]
+    #if protocol == "memo":
+        #prefix, content = parse_memo_script( script )
+        #return content, prefix
+    #elif protocol == "matter": 
+        #if prefix == 0x01: # post header
+            #checksum, script = read_data( script )
+            #chunkCount, script = read_data( script )
+            #chunk_count = int.from_bytes( chunkCount, 'little' )
+            #if script != bytes():
+                #title, script = read_data( script )
             
-            content = [ checksum.hex(), chunk_count, title.decode('utf-8') ]
-            while script != bytes():
-                tag, script = read_data( script )
-                content.append( tag )
-            return content, prefix
-        elif prefix == 0x02: # post chunk
-            headerTxId, script = read_data( script )
-            header_txid = headerTxId.hex()
-            chunkId, script = read_data( script ) 
-            chunk_id = int.from_bytes( chunkId, 'little' )
-            text, script = read_data( script )            
-            return [header_txid, chunk_id, text.decode('utf-8')], prefix
-        elif prefix == 0x03: # set profile name
-            name, script = read_data( script )
-            return [name.decode('utf-8')], prefix
-        elif prefix == 0x04: # set profile picture
-            url, script = read_data( script )
-            return [url.decode('utf-8')], prefix
-        elif prefix == 0x05: # set profile bio
-            bio, script = read_data( script )
-            return [bio.decode('utf-8')], prefix
-        elif prefix == 0x07: # comment header
-            checksum, script = read_data( script )
-            chunkCount, script = read_data( script )
-            chunk_count = int.from_bytes( chunkCount, 'little' )
+            #content = [ checksum.hex(), chunk_count, title.decode('utf-8') ]
+            #while script != bytes():
+                #tag, script = read_data( script )
+                #content.append( tag )
+            #return content, prefix
+        #elif prefix == 0x02: # post chunk
+            #headerTxId, script = read_data( script )
+            #header_txid = headerTxId.hex()
+            #chunkId, script = read_data( script ) 
+            #chunk_id = int.from_bytes( chunkId, 'little' )
+            #text, script = read_data( script )            
+            #return [header_txid, chunk_id, text.decode('utf-8')], prefix
+        #elif prefix == 0x03: # set profile name
+            #name, script = read_data( script )
+            #return [name.decode('utf-8')], prefix
+        #elif prefix == 0x04: # set profile picture
+            #url, script = read_data( script )
+            #return [url.decode('utf-8')], prefix
+        #elif prefix == 0x05: # set profile bio
+            #bio, script = read_data( script )
+            #return [bio.decode('utf-8')], prefix
+        #elif prefix == 0x07: # comment header
+            #checksum, script = read_data( script )
+            #chunkCount, script = read_data( script )
+            #chunk_count = int.from_bytes( chunkCount, 'little' )
             
-            content = [ checksum.hex(), chunk_count ]
-            if (chunk_count == 0) & (script != bytes()):
-                text, script = read_data( script )
-                content.append( text )
-            return content, prefix
-        elif prefix == 0x08: # comment chunk
-            headerTxId, script = read_data( script )
-            header_txid = headerTxId.hex()
-            chunkId, script = read_data( script ) 
-            chunk_id = int.from_bytes( chunkId, 'little' )
-            text, script = read_data( script )            
-            return [header_txid, chunk_id, text.decode('utf-8')], prefix
-        else:
-            content = []
-            while script != bytes():
-                d, script = read_data( script )
-                content.append( d )
-            return content, None
-    else:
-        content = []
-        while script != bytes():
-            d, script = read_data( script )
-            content.append( d )
-        return content, None
+            #content = [ checksum.hex(), chunk_count ]
+            #if (chunk_count == 0) & (script != bytes()):
+                #text, script = read_data( script )
+                #content.append( text )
+            #return content, prefix
+        #elif prefix == 0x08: # comment chunk
+            #headerTxId, script = read_data( script )
+            #header_txid = headerTxId.hex()
+            #chunkId, script = read_data( script ) 
+            #chunk_id = int.from_bytes( chunkId, 'little' )
+            #text, script = read_data( script )            
+            #return [header_txid, chunk_id, text.decode('utf-8')], prefix
+        #else:
+            #content = []
+            #while script != bytes():
+                #d, script = read_data( script )
+                #content.append( d )
+            #return content, None
+    #else:
+        #content = []
+        #while script != bytes():
+            #d, script = read_data( script )
+            #content.append( d )
+        #return content, None
     
 
 def parse_unlocking_script( script ):
@@ -353,10 +388,10 @@ def parse_locking_script( script ):
         # Pay-to-Script-Hash
         h, _ = read_data( script[1:-1] )
         return "p2sh", Address.from_script_hash( h ), None
-    elif (script[0] == OP_RETURN) & (len(script) <= 221):
+    elif (script[0] == OP_RETURN) & (len(script) <= 223):
         address = "d-" + sha256( script.hex().encode('utf-8') )[:16].hex()
-        content, prefix = parse_nulldata_script( script )
-        return "nulldata", address, [content, prefix]
+        data = read_nulldata_script( script )
+        return "nulldata", address, data
     else:
         raise ScriptError("cannot parse locking script")
 

@@ -93,5 +93,5 @@ class Constants:
         self.NETWORK_MAGIC = 0xf4f3e5f4
         self.DEFAULT_PORT = 18333
         
-#Constants.set_mainnet()
-Constants.set_testnet()
+Constants.set_mainnet()
+#Constants.set_testnet()
