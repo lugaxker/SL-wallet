@@ -75,7 +75,8 @@ FORKID = 0x00000000
 BCH_SIGHASH_TYPE = 0x41
 #0x01 | (SIGHASH_FORKID + (FORKID << 8))
 
-# TODO: Create TransactionOutput class? How outputs are managed in other implementations?
+# TODO: Create TransactionOutput class? How outputs are managed in other implementations? 
+# In bitcoin-abc: class CTxOut in primitives/transaction.* 
 
 class TransactionError(Exception):
     '''Exception used for Transaction errors.'''

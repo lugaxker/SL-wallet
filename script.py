@@ -3,7 +3,7 @@
 
 from crypto import (sha256, hash160, PublicKey)
 from address import Address
-from memo import (create_memo_script, parse_memo_script)
+from nulldata import (create_memo_script, parse_memo_script)
 
 from util import (read_bytes, push_data, read_data, op_number, read_op_number, script_number)
 
