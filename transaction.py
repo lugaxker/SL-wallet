@@ -212,7 +212,7 @@ class Transaction:
         if 'locking_script' in txout:
             lockingScript = bytes.fromhex(txout['locking_script'])
         else:
-            if txout['type'] in ("p2pkh", "p2sh"):
+            if 'address' in txout:
                 lockingScript = locking_script( txout['address'] )
             elif txout['type'] == "p2pk":
                 raise TransactionError("cannot serialize p2pk output")

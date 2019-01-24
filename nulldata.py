@@ -26,6 +26,9 @@ def get_protocol( prefix ):
 
 
 ''' Memo protocol. Specifications at https://memo.cash/protocol. '''
+
+# OP_RETURN
+OP_RETURN = 0x6a
     
 # Action codes
 MEMO_SET_PROFILE_NAME = 0x6d01
@@ -42,6 +45,7 @@ MEMO_UNFOLLOW_TOPIC = 0x6d0e
 MEMO_CREATE_POLL = 0x6d10
 MEMO_ADD_POLL_OPTION = 0x6d13
 MEMO_VOTE_IN_POLL = 0x6d14
+MEMO_SEND_MONEY = 0x6d24
 
 def create_memo_script( prefix, content ):
     ''' prefix (int): action code
@@ -49,25 +53,27 @@ def create_memo_script( prefix, content ):
     prefix_bytes = prefix.to_bytes(2, 'big')
     if prefix in (MEMO_SET_PROFILE_NAME, MEMO_POST, MEMO_SET_PROFILE_TEXT, MEMO_SET_PROFILE_PICTURE,
                   MEMO_POST_IN_TOPIC, MEMO_FOLLOW_TOPIC, MEMO_UNFOLLOW_TOPIC):
-        return ( push_data(prefix_bytes) +
+        return ( bytes( [OP_RETURN] ) + push_data(prefix_bytes) +
                  bytes().join( push_data( d.encode('utf-8') ) for d in content ) )
     elif prefix in (MEMO_REPLY, MEMO_LIKE_AND_TIP, MEMO_ADD_POLL_OPTION, MEMO_VOTE_IN_POLL):
-        return ( push_data( prefix_bytes ) + push_data( bytes.fromhex( content[0] )[::-1] ) +
+        return ( bytes( [OP_RETURN] ) + push_data( prefix_bytes ) + push_data( bytes.fromhex( content[0] )[::-1] ) +
                  bytes().join( push_data( d.encode('utf-8') ) for d in content[1:] ) )
-    elif prefix in (MEMO_FOLLOW_USER, MEMO_UNFOLLOW_USER):
-        return ( push_data(prefix_bytes) +
+    elif prefix in (MEMO_FOLLOW_USER, MEMO_UNFOLLOW_USER, MEMO_SEND_MONEY):
+        return ( bytes( [OP_RETURN] ) + push_data(prefix_bytes) +
                  push_data( bytes.fromhex( content[0] ) ) +
                  bytes().join( push_data( d.encode('utf-8') ) for d in content[1:] ) )
     elif prefix == MEMO_CREATE_POLL:
         poll_type = op_number( content[0] )
         option_count = op_number( content[1] )
-        return ( push_data( prefix_bytes ) + bytes( [poll_type, option_count] ) + 
+        return ( bytes( [OP_RETURN] ) + push_data( prefix_bytes ) + bytes( [poll_type, option_count] ) + 
                  bytes().join( push_data( d.encode('utf-8') ) for d in content[2:] ) )
     
     else:
         raise NullDataError("cannot serialize memo script")
     
 def parse_memo_script( script ):
+    return_byte, script = script[0], script[1:]
+    assert return_byte == OP_RETURN
     prefix_bytes, script = read_data( script )
     prefix = int.from_bytes(prefix_bytes, 'big')
     content = []

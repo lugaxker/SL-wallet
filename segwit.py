@@ -111,6 +111,10 @@ class SegWitAddr:
         ret = SegWitAddr.bech32_encode(hrp, [witver] + SegWitAddr.convertbits(witprog, 8, 5))
         assert SegWitAddr.decode(hrp, ret) is not (None, None)
         return ret
+    
+    
+def segwit_locking_script(witver, witprog):
+    return bytes([witver]) + push_data(witprog)
 
 if __name__ == '__main__':
     
@@ -130,21 +134,24 @@ if __name__ == '__main__':
     # Witness version (0)
     witver = 0
     
+    # Witness program
+    witprog_p2wpkh = addr.h 
+    
     # Native segwit P2WPKH address
-    segaddr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, addr.h )
+    segaddr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, witprog_p2wpkh )
     print("SegWit Address (P2WPKH)", segaddr)
     
     # P2SH-nested segwit P2WPKH address
-    witness_script = bytes([witver]) + push_data( addr.h )
+    witness_script = segwit_locking_script( witver, witprog_p2wpkh )
     segaddr_p2sh = Address.from_script( witness_script )
-    print("SegWit Address (P2WPKH-P2SH)", segaddr_p2sh.to_legacy() )
+    print("SegWit Address (P2SH-P2WPKH)", segaddr_p2sh.to_legacy() )
+    print()
     
-    # Native P2WSH multisig address
+    # P2WSH multisig address
     wifkeys_multisig = ["KzwQjFQPytv5x6w2cLdF4BSweGVCPEt8b8HbcuTi8e75LRQfw94L",
                         "Ky4yk7uTBZ1EDbqyVfkvoZXURpWdRCxTpCERZb4gkn67fY8kK95R",
                         "Kz3Htg8mSfC997qkBxpVCdxYhEoRcFj5ikUjE96ipVAJPou7MwRD"]
     pubkeys =  [PublicKey.from_prvkey( wk ) for wk in wifkeys_multisig ]
-    print()
     print("--- 2-of-3 multisig address ---")
     print("Private keys")
     for wk in wifkeys_multisig:
@@ -154,23 +161,36 @@ if __name__ == '__main__':
     print("SHA256 of redeem script", redeem_script_hash.hex())
     print("Legacy Address (P2SH)", Address.from_script( redeem_script ).to_legacy())
     
-    p2wsh_addr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, redeem_script_hash )
+    # Witness program 
+    witprog_p2wsh = redeem_script_hash
+    
+    # Native segwit P2WSH address
+    p2wsh_addr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, witprog_p2wsh )
     print("SegWit Address (P2WSH)", p2wsh_addr)
+    
+    # P2SH-nested segwit P2WPKH address
+    witness_script = segwit_locking_script( witver, witprog_p2wsh )
+    segaddr_p2sh_p2wsh = Address.from_script( witness_script )
+    print("SegWit Address (P2SH-P2WSH)", segaddr_p2sh_p2wsh.to_legacy() )
+    print()
     
     print("-----")
     h = bytes.fromhex("914a1f77b4bf763b901655e52e83784d5c605053")
     witver = 0
-    witness_script = bytes([witver]) + push_data( h )
+    witprog = h
+    witness_script = segwit_locking_script(witver, witprog)
     a = Address.from_script(witness_script).to_legacy()
     print(a)
 
     redeem_script_hash = bytes.fromhex("04d3da43f6750398281ed128d23bc6b6daa90e3c7431d15acaee052b0e6351be")
-    p2wsh_addr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, redeem_script_hash )
+    witprog = redeem_script_hash
+    p2wsh_addr = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, witprog )
     print("SegWit Address (P2WSH)", p2wsh_addr)
 
     h = bytes.fromhex("2a44a5921e7e62e84e4478c2dd836dbfc9732bae87")
     witver = 0
-    script = bytes([witver]) + push_data( h )
+    witprog = h
+    script = segwit_locking_script(witver, witprog)
     a = Address.from_script(script).to_legacy()
     print(a)
 
@@ -180,7 +200,8 @@ if __name__ == '__main__':
 
     redeem_script_2 = bytes.fromhex("6321035ddbc3ec6a9459ab05e20af1451d80deff37941095b2003ecc27c0235a8dc4d067029000b2752102d7c52ff0e21c77a848fe5b2eb1cd68a1ad4d84dfeacd2c1ec141d66f4364772868ac")
     hash_redeem_script_2 = sha256( redeem_script_2 )
-    p2wsh_addr_2 = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, hash_redeem_script_2 )
+    witprog = hash_redeem_script_2
+    p2wsh_addr_2 = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, witprog )
     print(p2wsh_addr_2)
     print()
         

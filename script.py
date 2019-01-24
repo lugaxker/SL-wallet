@@ -94,7 +94,7 @@ OP_CHECKLOCKTIMEVERIFY = 0xb1
 OP_CHECKSEQUENCEVERIFY = 0xb2
 
 # Reserved words
-OP_NOP1 = 0xb0
+OP_NOP1 = 0xb0 # previously reserved for OP_EVAL (BIP-12), an alternative to P2SH
 OP_NOP4 = 0xb3
 OP_NOP5 = 0xb4
 OP_NOP6 = 0xb5
