@@ -39,7 +39,7 @@ def getrandrange(order, entropy=None):
     return ecdsa.util.randrange(order, entropy)
 
 class ModifiedSigningKey(ecdsa.SigningKey):
-    '''Enforce low S values in signatures (BIP-62).'''
+    ''' Enforce low S values in signatures (BIP-62). '''
 
     def sign_number(self, number, entropy=None, k=None):
         curve = ecdsa.SECP256k1
@@ -67,6 +67,7 @@ class PrivateKey:
         
     @classmethod
     def from_wif(self, wifkey):
+        ''' Builds Private Key from Wallet Import Format string. '''
         assert isinstance( wifkey, str )
         payload = Base58.decode_check( wifkey )
         assert len(payload) in (33,34)

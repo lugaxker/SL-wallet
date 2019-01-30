@@ -52,15 +52,18 @@ OP_2OVER = 0x70
 OP_2ROT = 0x71
 OP_2SWAP = 0x72
 
-# Splice
-#OP_CAT = 0x7e
-#OP_SUBSTR = 0x7f
-#OP_LEFT = 0x80
-#OP_RIGHT = 0x81
+# Splice operations
+OP_CAT = 0x7e
+OP_SPLIT = 0x7f
+#OP_SUBSTR = 0x7f replaced by OP_SPLIT in may 2018
+OP_NUM2BIN = 0x80
+#OP_LEFT = 0x80 replaced by OP_NUM2BIN in may 2018, can be implemented with varying combinations of OP_SPLIT, OP_SWAP and OP_DROP
+OP_BIN2NUM = 0x81
+#OP_RIGHT = 0x81 replaced by OP_BIN2NUM in may 2018, can be implemented with varying combinations of OP_SPLIT, OP_SWAP and OP_DROP
 OP_SIZE = 0x82
 
 # Bitwise logic
-OP_INVERT = 0x83
+#OP_INVERT = 0x83 disabled: re-enabled in may 2019?
 OP_AND = 0x84
 OP_OR = 0x85
 OP_XOR = 0x86
@@ -76,6 +79,11 @@ OP_NOT = 0x91
 OP_0NOTEQUAL = 0x92
 OP_ADD = 0x93
 OP_SUB = 0x94
+#OP_MUL = 0x95 disabled: re-enabled in may 2019?
+OP_DIV = 0x96 
+OP_MOD = 0x97 
+#OP_LSHIFT = 0x98 disabled: re-enabled in may 2019?
+#OP_RSHIFT = 0x99 disabled: re-enabled in may 2019?
  
 # Crypto
 OP_SHA1 = 0xa7

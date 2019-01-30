@@ -6,6 +6,7 @@ from base58 import Base58
 from address import Address
 from util import push_data
 from script import multisig_locking_script
+from transaction import Transaction
 
 class SegWitAddr:
     """ Reference implementation for Bech32 and segwit addresses. """
@@ -116,6 +117,11 @@ class SegWitAddr:
 def segwit_locking_script(witver, witprog):
     return bytes([witver]) + push_data(witprog)
 
+def SegwitTransaction(Transaction):
+    # TODO
+    pass
+    
+
 if __name__ == '__main__':
     
     import sys
@@ -205,3 +211,4 @@ if __name__ == '__main__':
     print(p2wsh_addr_2)
     print()
         
+    SegwitTransaction()
