@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
-from crypto import (sha256, hash160, PrivateKey, PublicKey)
+from crypto import (sha256, dsha256, hash160, PrivateKey, PublicKey)
 from base58 import Base58
 from address import Address
-from util import push_data
+from util import (push_data, var_int)
 from script import multisig_locking_script
 from transaction import Transaction
+
+from constants import *
 
 class SegWitAddr:
     """ Reference implementation for Bech32 and segwit addresses. """
@@ -117,9 +119,60 @@ class SegWitAddr:
 def segwit_locking_script(witver, witprog):
     return bytes([witver]) + push_data(witprog)
 
-def SegwitTransaction(Transaction):
-    # TODO
-    pass
+class BtcTransaction(Transaction):
+    
+    BTC_SIGHASH_TYPE = 0x01
+    
+    def __init__(self, version = Constants.TX_VERSION, txins = [], txouts = [], locktime = 0):
+        self._inputs = txins
+        self._outputs = txouts
+        self.version = version
+        self.locktime = locktime
+        self.hashtype = self.BTC_SIGHASH_TYPE # hardcoded signature hashtype
+    
+    def serialize_legacy_preimage(self):
+        ''' Serializes the preimage of the transaction.'''
+        nVersion = self.version.to_bytes(4,'little')
+        nLocktime = self.locktime.to_bytes(4,'little')
+        nHashtype = self.hashtype.to_bytes(4,'little') # signature hashtype (little-endian)
+        
+        txins = var_int(len(self._inputs))
+        for txin in self._inputs:
+            outpoint  = self.serialize_outpoint(txin)
+            prevLockingScript = self.get_preimage_script(txin)
+            prevLockingScriptSize = var_int( len(prevLockingScript) )
+            nSequence = txin['sequence'].to_bytes(4,'little')
+            txins += outpoint + prevLockingScriptSize + prevLockingScript + nSequence
+        txouts = var_int(len(self._outputs)) + bytes().join( self.serialize_output(txo) for txo in self._outputs )
+        
+        return (nVersion + txins + txouts + nLocktime + nHashtype)
+    
+    def sign(self, private_keys):
+        '''Signs the transaction. 
+        prvkeys (list of PrivateKey items)'''
+        for i, txin in enumerate(self._inputs):
+            prvkeys = private_keys[i] 
+            if isinstance( prvkeys, PrivateKey):
+                assert txin['nsigs'] == 1
+                prvkeys = [ prvkeys ]
+            elif isinstance( prvkeys, list ):
+                assert len( prvkeys ) == txin['nsigs']
+                # Sorting keys
+                sorted_prvkeys = []
+                for prvkey in prvkeys:
+                    pubkey = PublicKey.from_prvkey( prvkey )
+                    assert(pubkey in txin['pubkeys'])
+                    sorted_prvkeys += [(txin['pubkeys'].index(pubkey), prvkey)]
+                sorted_prvkeys.sort(key = lambda x: x[0])
+                prvkeys = [k[1] for k in sorted_prvkeys]
+            else:
+                raise TransactionError('wrong type for private keys')
+            if txin['type'] in ('p2pkh','p2sh'):
+                prehash = dsha256( self.serialize_legacy_preimage() )
+            elif txin['type'] in ('p2wpkh', 'p2wsh', 'p2sh-p2wpkh', 'p2sh-p2wsh'):
+                prehash = dsha256( self.serialize_preimage(txin) )
+            hashtype = bytes( [self.hashtype & 0xff] ).hex()
+            self._inputs[i]['signatures'] = [ prvkey.sign( prehash, strtype=True ) + hashtype for prvkey in prvkeys ]
     
 
 if __name__ == '__main__':
@@ -210,5 +263,42 @@ if __name__ == '__main__':
     p2wsh_addr_2 = SegWitAddr.encode( SegWitAddr.SEGWIT_HRP, witver, witprog )
     print(p2wsh_addr_2)
     print()
-        
-    SegwitTransaction()
+    
+    
+    # BTC transaction
+    wifkey = "KxDEKVUyDvbZj2sCoiKjpPKHuz7Vcei7t4PL1wiapTnQTAgLdNrb"
+    prvkey = PrivateKey.from_wif( wifkey )
+    pubkey = PublicKey.from_prvkey( prvkey )
+    address = Address.from_pubkey( pubkey ) # 1QKcNhS3VmDfbaAoX8gZpKuM3Xr9gZ8Pxo
+    print()
+    print("BTC legacy transaction")
+    print("Keys", prvkey, pubkey)
+    print("Address", address.to_legacy() )
+    output_address = Address.from_string("37KwYRZUteFURrfYiKDg21dGWvf8K1wcNm")
+    print("Output address", output_address.to_legacy())
+    
+    # Inputs
+    txins = []
+    
+    txin1 = {}
+    txin1['address'] = address
+    txin1['type'] = 'p2pkh'
+    txin1['sequence'] = Constants.SEQUENCE_NUMBER
+    txin1['pubkeys'] = [ pubkey ]
+    txin1['nsigs'] = 1
+    txin1['txid'] = "8a61b19482340bfc5e479875c649f08accf6d6488f138fb86d60dc0e14bfe827"
+    txin1['index'] = 0
+    txin1['value'] = 3300
+    txins.append( txin1 )
+    
+    # Output
+    txout = {}
+    txout['address'] = output_address
+    txout['type'] = 'p2sh'
+    txout['value'] = 2800
+    
+    tx = BtcTransaction(1, txins, [txout], 0)
+    tx.sign( [ prvkey ] )
+    
+    print(tx.serialize().hex())
+    print("id:", tx.txid().hex())

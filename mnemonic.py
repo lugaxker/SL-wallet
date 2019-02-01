@@ -58,13 +58,14 @@ def decode_mnemonic(mnemonic, wordlist):
         y += k << i*bpw
     checkbits = ((nwords*bpw) // 32)
     checksum = y % (1 << checkbits)
-    return (y - checksum) >> checkbits
+    entropy = (y - checksum) >> checkbits
+    assert checksum == mnemonic_checksum(entropy, checkbits*32), "Invalid mnemonic: wrong checksum"
+    return entropy
 
-def generate_mnemonic( nbits=128 ):
+def generate_mnemonic( nbits=128, filename = "english.txt" ):
     '''Generates a random BIP-39 mnemonic phrase.'''
     if nbits not in [128,160,192,224,256]:
         raise ValueError("Number of random bits must be 128, 160, 192, 224 or 256")
-    filename = "english.txt"
     wordlist = load_wordlist(filename)
     entropy = getrandrange(1 << nbits)    
     return encode_mnemonic(entropy, wordlist, nbits)

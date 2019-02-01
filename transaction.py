@@ -82,8 +82,7 @@ class TransactionError(Exception):
     '''Exception used for Transaction errors.'''
 
 class Transaction:
-    ''' Transaction. 
-    input . '''
+    ''' Transaction. '''
     
     def __init__(self, version = Constants.TX_VERSION, txins = [], txouts = [], locktime = 0):
         self._inputs = txins
@@ -373,7 +372,12 @@ class Transaction:
         return dict.__str__(dtx)
     
     def __repr__(self):
-        return "<Transaction {}>".format(self.txid())
+        try:
+            txid = self.txid.hex()
+        except:
+            return "<Transaction>"
+        else:
+            return "<Transaction {}>".format(txid)
     
 if __name__ == '__main__':
     
