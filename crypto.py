@@ -7,6 +7,7 @@ import hmac
 import pbkdf2
 
 from base58 import *
+from util import read_bytes
 
 from constants import *
 
@@ -215,19 +216,21 @@ def encode_xkey(key, chain_code, depth = 0, fingerprint=b'\x00'*4, child_number=
 def decode_xkey( xkey ):
     payload = Base58.decode_check( xkey )
     assert len(payload) == 78
-    header = int.from_bytes(payload[0:4], 'big')
-    depth = payload[4]
-    fingerprint = payload[5:9]
-    child_number = payload[9:13]
-    chain_code = payload[13:45]
+    header, payload = read_bytes(payload, 4, int, 'big')
+    depth, payload = read_bytes(payload, 1, int, 'big')
+    fingerprint, payload = read_bytes(payload, 4, bytes, 'big')
+    child_number, payload = read_bytes(payload, 4, bytes, 'big')
+    chain_code, payload = read_bytes(payload, 32, bytes, 'big')
     
-    assert ( header in (Constants.XPRV_HEADER, Constants.XPUB_HEADER) )
     if header == Constants.XPRV_HEADER:
-        key = payload[46:]
+        dummy, payload = read_bytes(payload, 1, int, 'big')
+        assert dummy == 0
+        key, payload = read_bytes(payload, 32, bytes, 'big')
     elif header == Constants.XPUB_HEADER:
-        key = payload[45:]
+        key, payload = read_bytes(payload, 33, bytes, 'big')
     else:
         raise KeyDerivationError('Invalid extended key format')
+    assert payload == bytes()
     return key, chain_code, depth, fingerprint, child_number
 
 def root_from_seed( seed ):
