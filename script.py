@@ -63,7 +63,7 @@ OP_BIN2NUM = 0x81
 OP_SIZE = 0x82
 
 # Bitwise logic
-#OP_INVERT = 0x83 disabled: re-enabled in may 2019?
+#OP_INVERT = 0x83 disabled: re-enabled in november 2019?
 OP_AND = 0x84
 OP_OR = 0x85
 OP_XOR = 0x86
@@ -79,11 +79,11 @@ OP_NOT = 0x91
 OP_0NOTEQUAL = 0x92
 OP_ADD = 0x93
 OP_SUB = 0x94
-#OP_MUL = 0x95 disabled: re-enabled in may 2019?
+#OP_MUL = 0x95 disabled: re-enabled in november 2019?
 OP_DIV = 0x96 
 OP_MOD = 0x97 
-#OP_LSHIFT = 0x98 disabled: re-enabled in may 2019?
-#OP_RSHIFT = 0x99 disabled: re-enabled in may 2019?
+#OP_LSHIFT = 0x98 disabled: re-enabled in november 2019?
+#OP_RSHIFT = 0x99 disabled: re-enabled in november 2019?
  
 # Crypto
 OP_SHA1 = 0xa7
@@ -144,7 +144,7 @@ def expiring_tip_locking_script( locktime, claim_pubkey, refund_pubkey ):
     assert (locktime < 0x100000000)
     assert isinstance( claim_pubkey, PublicKey )
     assert isinstance( refund_pubkey, PublicKey )
-    assert (claim_pubkey.is_compressed() & claim_pubkey.is_compressed()), "public keys must be compressed"
+    assert (claim_pubkey.is_compressed() & refund_pubkey.is_compressed()), "public keys must be compressed"
     return ( bytes([OP_IF]) + 
              push_data( claim_pubkey.to_ser() ) +
              bytes([OP_ELSE]) + 
@@ -206,23 +206,8 @@ def p2sh_unlocking_script( addr, redeem_script, pubkeys, signatures ):
     else:
         raise ScriptError("cannot parse script")
     
-    
-
-# TODO: create memo.py and matter.py
-
-DATA_MEMO = 0x6d
-DATA_MATTER = 0x9d
-DATA_BLOCKPRESS = 0x8d
-
-# TODO
 def nulldata_script( data ):
     ''' Data (temporary: int, bytes and str) '''
-    
-    for i, d in enumerate(data):
-        if isinstance(d, Address):
-            data[i] = d.h
-        elif isinstance(d, PublicKey):
-            data[i] = d.to_ser(strtype=False)
     
     script = bytes([OP_RETURN])
     for d in data:
@@ -233,9 +218,43 @@ def nulldata_script( data ):
         elif isinstance(d, str):
             script += push_data( d.encode('utf-8') )
         else:
-            ScriptError("cannot serialize nulldata script")
+            NullDataError("cannot serialize nulldata script")
             
     return script
+    
+    
+
+# TODO: create memo.py and matter.py
+
+DATA_MEMO = 0x6d
+DATA_MATTER = 0x9d
+DATA_BLOCKPRESS = 0x8d
+
+# TODO
+
+
+
+#def nulldata_script( data ):
+    #''' Data (temporary: int, bytes and str) '''
+    
+    #for i, d in enumerate(data):
+        #if isinstance(d, Address):
+            #data[i] = d.h
+        #elif isinstance(d, PublicKey):
+            #data[i] = d.to_ser(strtype=False)
+    
+    #script = bytes([OP_RETURN])
+    #for d in data:
+        #if isinstance(d, int):
+            #script += push_data( script_number(d) )
+        #elif isinstance(d, bytes):
+            #script += push_data( d )
+        #elif isinstance(d, str):
+            #script += push_data( d.encode('utf-8') )
+        #else:
+            #ScriptError("cannot serialize nulldata script")
+            
+    #return script
             
             
     #if prefix is None:

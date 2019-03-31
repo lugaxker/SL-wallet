@@ -60,7 +60,7 @@ from crypto import (dsha256, PrivateKey, PublicKey)
 from address import *
 from script import *
 
-from util import (read_bytes, var_int, read_var_int, var_int_size)
+from util import (read_bytes, var_int, read_var_int, var_int_size, push_data_size)
 
 from constants import *
 
@@ -378,6 +378,61 @@ class Transaction:
             return "<Transaction>"
         else:
             return "<Transaction {}>".format(txid)
+        
+class BtcTransaction(Transaction):
+    
+    BTC_SIGHASH_TYPE = 0x01
+    
+    def __init__(self, version = Constants.TX_VERSION, txins = [], txouts = [], locktime = 0):
+        self._inputs = txins
+        self._outputs = txouts
+        self.version = version
+        self.locktime = locktime
+        self.hashtype = self.BTC_SIGHASH_TYPE # hardcoded signature hashtype
+    
+    def serialize_legacy_preimage(self):
+        ''' Serializes the preimage of the transaction.'''
+        nVersion = self.version.to_bytes(4,'little')
+        nLocktime = self.locktime.to_bytes(4,'little')
+        nHashtype = self.hashtype.to_bytes(4,'little') # signature hashtype (little-endian)
+        
+        txins = var_int(len(self._inputs))
+        for txin in self._inputs:
+            outpoint  = self.serialize_outpoint(txin)
+            prevLockingScript = self.get_preimage_script(txin)
+            prevLockingScriptSize = var_int( len(prevLockingScript) )
+            nSequence = txin['sequence'].to_bytes(4,'little')
+            txins += outpoint + prevLockingScriptSize + prevLockingScript + nSequence
+        txouts = var_int(len(self._outputs)) + bytes().join( self.serialize_output(txo) for txo in self._outputs )
+        
+        return (nVersion + txins + txouts + nLocktime + nHashtype)
+    
+    def sign(self, private_keys):
+        '''Signs the transaction. 
+        prvkeys (list of PrivateKey items)'''
+        for i, txin in enumerate(self._inputs):
+            prvkeys = private_keys[i] 
+            if isinstance( prvkeys, PrivateKey):
+                assert txin['nsigs'] == 1
+                prvkeys = [ prvkeys ]
+            elif isinstance( prvkeys, list ):
+                assert len( prvkeys ) == txin['nsigs']
+                # Sorting keys
+                sorted_prvkeys = []
+                for prvkey in prvkeys:
+                    pubkey = PublicKey.from_prvkey( prvkey )
+                    assert(pubkey in txin['pubkeys'])
+                    sorted_prvkeys += [(txin['pubkeys'].index(pubkey), prvkey)]
+                sorted_prvkeys.sort(key = lambda x: x[0])
+                prvkeys = [k[1] for k in sorted_prvkeys]
+            else:
+                raise TransactionError('wrong type for private keys')
+            if txin['type'] in ('p2pkh','p2sh'):
+                prehash = dsha256( self.serialize_legacy_preimage() )
+            elif txin['type'] in ('p2wpkh', 'p2wsh', 'p2sh-p2wpkh', 'p2sh-p2wsh'):
+                prehash = dsha256( self.serialize_preimage(txin) )
+            hashtype = bytes( [self.hashtype & 0xff] ).hex()
+            self._inputs[i]['signatures'] = [ prvkey.sign( prehash, strtype=True ) + hashtype for prvkey in prvkeys ]
     
 if __name__ == '__main__':
     

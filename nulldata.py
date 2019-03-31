@@ -3,7 +3,7 @@
 
 from util import (push_data, read_data, op_number, read_op_number)
 
-''' Nulldata (RETURN) output analysis. '''
+''' Nulldata (RETURN) output processing. '''
 
 class NullDataError(Exception):
     pass
