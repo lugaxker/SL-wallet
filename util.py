@@ -70,6 +70,7 @@ def read_op_number( n ):
 OP_PUSHDATA1 = 0x4c
 OP_PUSHDATA2 = 0x4d
 OP_PUSHDATA4 = 0x4e
+OP_1NEGATE = 0x4f
 
 def push_data(data):
     '''Returns the op codes to push the data on the stack.'''
@@ -77,10 +78,12 @@ def push_data(data):
     # data must be a bytes string
     assert isinstance(data, (bytes, bytearray))
 
-    # minimal pushdata must be enforced
+    # Minimal push must be enforced (HF-20191511)
     n = len(data)
     if n == 1 & (int.from_bytes(data, 'big') <= 0x10):
         return bytes([op_number( int.from_bytes(data, 'big') )])
+    if n == 1 && (int.frombytes(data, 'big') == 0x81):
+        return OP_1NEGATE
     if n < OP_PUSHDATA1:
         return bytes([n]) + data
     if n <= 0xff:
