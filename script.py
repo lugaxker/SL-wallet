@@ -84,6 +84,19 @@ OP_DIV = 0x96
 OP_MOD = 0x97 
 #OP_LSHIFT = 0x98 disabled
 #OP_RSHIFT = 0x99 disabled
+OP_BOOLAND = 0x9a
+OP_BOOLOR = 0x9b
+OP_NUMEQUAL = 0x9c
+OP_NUMEQUALVERIFY = 0x9d
+OP_NUMNOTEQUAL = 0x9e
+OP_LESSTHAN = 0x9f
+OP_GREATERTHAN = 0xa0
+OP_LESSTHANOREQUAL = 0xa1
+OP_GREATERTHANOREQUAL = 0xa2
+OP_MIN = 0xa3
+OP_MAX = 0xa4
+OP_WITHIN = 0xa5
+OP_REVERSEBYTES = 0xbc
  
 # Crypto
 OP_RIPEMD160 = 0xa6
@@ -439,7 +452,7 @@ def parse_locking_script( script ):
     elif (script[0] == OP_RETURN) & (len(script) <= 223):
         address = "d-" + sha256( script.hex().encode('utf-8') )[:16].hex()
         data = read_nulldata_script( script )
-        return "nulldata", address, data
+        #return "nulldata", address, data
     else:
         raise ScriptError("cannot parse locking script")
 
