@@ -50,6 +50,39 @@ class ModifiedSigningKey(ecdsa.SigningKey):
         if s > order//2:
             s = order - s
         return r, s
+    
+def nonce_function_rfc6979(order, privkeybytes, msg32, algo16=b'', ndata=b''):
+    """ pure python RFC6979 deterministic nonce generation, done in
+    libsecp256k1 style -- see nonce_function_rfc6979() in secp256k1.c.
+    """
+    assert len(privkeybytes) == 32
+    assert len(msg32) == 32
+    assert len(algo16) in (0, 16)
+    assert len(ndata) in (0, 32)
+    assert order.bit_length() == 256
+
+    V = b'\x01'*32
+    K = b'\x00'*32
+    blob = bytes(privkeybytes) + msg32 + ndata + algo16
+    # initialize
+    K = hmac.HMAC(K, V+b'\x00'+blob, 'sha256').digest()
+    V = hmac.HMAC(K, V, 'sha256').digest()
+    K = hmac.HMAC(K, V+b'\x01'+blob, 'sha256').digest()
+    V = hmac.HMAC(K, V, 'sha256').digest()
+    # loop forever until an in-range k is found
+    while True:
+        # see RFC6979 3.2.h.2 : we take a shortcut and don't build T in
+        # multiple steps since the first step is always the right size for
+        # our purpose.
+        V = hmac.HMAC(K, V, 'sha256').digest()
+        T = V
+        assert len(T) == 32
+        k = int.from_bytes(T, 'big')
+        if k > 0 and k < order:
+            break
+        K = hmac.HMAC(K, V+b'\x00', 'sha256').digest()
+        V = HMAC_K(V)
+    return k
 
 class PrivateKey:
     
@@ -84,11 +117,36 @@ class PrivateKey:
             payload += bytes([0x01])
         return Base58.encode_check( payload )
     
-    def sign(self, msg_hash, strtype=False):
-        private_key = ModifiedSigningKey.from_secret_exponent(self.secret, curve = ecdsa.SECP256k1)
-        public_key = private_key.get_verifying_key()
-        signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
-        assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_der)        
+    def sign(self, msg_hash, alg="schnorr", strtype=False):
+        if not isinstance(msg_hash, bytes) or len(msg_hash) != 32:
+            raise ValueError('msg_hash must be a bytes object of length 32')
+        if alg == "schnorr":
+            G = ecdsa.SECP256k1.generator
+            order = G.order()
+            fieldsize = G.curve().p()
+            P = self.secret * G        
+            if self.compressed:
+                Pb= "{:02x}{:064x}".format( 0x02 + (P.y() & 1), P.x())
+            else:
+                Pb = "04{:064x}{:064x}".format( P.x(), P.y())
+            pubbytes = bytes.fromhex( Pb )
+            k = nonce_function_rfc6979(order, self.secret.to_bytes(32, 'big'), msg_hash,
+                                       algo16=b'Schnorr+SHA256\x20\x20')
+            R = k * G
+            if ecdsa.numbertheory.jacobi(R.y(), fieldsize) == -1:
+                k = order - k
+            rbytes = R.x().to_bytes(32,'big')
+            ebytes = sha256(rbytes + pubbytes + msg_hash)
+            e = int.from_bytes(ebytes, 'big')
+            s = (k + e * self.secret ) % order
+            signature = rbytes + s.to_bytes(32, 'big')
+        elif alg == "ecdsa":
+            private_key = ModifiedSigningKey.from_secret_exponent(self.secret, curve = ecdsa.SECP256k1)
+            public_key = private_key.get_verifying_key()
+            signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
+            assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_der)
+        else:
+            raise Exception("Signature algorithm must schnorr or ecdsa")
         return ( signature.hex() if strtype else signature )
     
     def __str__(self):

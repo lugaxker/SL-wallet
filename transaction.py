@@ -279,7 +279,7 @@ class Transaction:
         else:
             return None
         
-    def sign(self, private_keys):
+    def sign(self, private_keys, alg="schnorr"):
         '''Signs the transaction. 
         prvkeys (list of PrivateKey items)'''
         for i, txin in enumerate(self._inputs):
@@ -301,7 +301,7 @@ class Transaction:
                 raise TransactionError('wrong type for private keys')
             prehash = dsha256( self.serialize_preimage(txin) )
             hashtype = bytes( [self.hashtype & 0xff] ).hex()
-            self._inputs[i]['signatures'] = [ prvkey.sign( prehash, strtype=True ) + hashtype for prvkey in prvkeys ]
+            self._inputs[i]['signatures'] = [ prvkey.sign( prehash, alg, strtype=True ) + hashtype for prvkey in prvkeys ]
           
     def estimate_input_size(self, txin):
         sz_prevout_txid = 32
@@ -390,18 +390,22 @@ class BtcTransaction(Transaction):
         self.locktime = locktime
         self.hashtype = self.BTC_SIGHASH_TYPE # hardcoded signature hashtype
     
-    def serialize_legacy_preimage(self):
+    def serialize_legacy_preimage(self, txin):
         ''' Serializes the preimage of the transaction.'''
         nVersion = self.version.to_bytes(4,'little')
         nLocktime = self.locktime.to_bytes(4,'little')
         nHashtype = self.hashtype.to_bytes(4,'little') # signature hashtype (little-endian)
         
         txins = var_int(len(self._inputs))
-        for txin in self._inputs:
-            outpoint  = self.serialize_outpoint(txin)
-            prevLockingScript = self.get_preimage_script(txin)
+        for txi in self._inputs:
+            outpoint  = self.serialize_outpoint(txi)
+            nSequence = txi['sequence'].to_bytes(4,'little')
+            if (txi['txid'] == txin['txid']) & (txi['index'] == txin['index']):
+                # We inputs are the same
+                prevLockingScript = self.get_preimage_script(txi)
+            else:
+                prevLockingScript = bytes()
             prevLockingScriptSize = var_int( len(prevLockingScript) )
-            nSequence = txin['sequence'].to_bytes(4,'little')
             txins += outpoint + prevLockingScriptSize + prevLockingScript + nSequence
         txouts = var_int(len(self._outputs)) + bytes().join( self.serialize_output(txo) for txo in self._outputs )
         
@@ -428,11 +432,11 @@ class BtcTransaction(Transaction):
             else:
                 raise TransactionError('wrong type for private keys')
             if txin['type'] in ('p2pkh','p2sh'):
-                prehash = dsha256( self.serialize_legacy_preimage() )
+                prehash = dsha256( self.serialize_legacy_preimage(txin) )
             elif txin['type'] in ('p2wpkh', 'p2wsh', 'p2sh-p2wpkh', 'p2sh-p2wsh'):
                 prehash = dsha256( self.serialize_preimage(txin) )
             hashtype = bytes( [self.hashtype & 0xff] ).hex()
-            self._inputs[i]['signatures'] = [ prvkey.sign( prehash, strtype=True ) + hashtype for prvkey in prvkeys ]
+            self._inputs[i]['signatures'] = [ prvkey.sign( prehash, alg="ecdsa", strtype=True ) + hashtype for prvkey in prvkeys ]
     
 if __name__ == '__main__':
     

@@ -63,7 +63,7 @@ OP_BIN2NUM = 0x81
 OP_SIZE = 0x82
 
 # Bitwise logic
-#OP_INVERT = 0x83 disabled: re-enabled in november 2019?
+#OP_INVERT = 0x83 disabled
 OP_AND = 0x84
 OP_OR = 0x85
 OP_XOR = 0x86
@@ -79,13 +79,14 @@ OP_NOT = 0x91
 OP_0NOTEQUAL = 0x92
 OP_ADD = 0x93
 OP_SUB = 0x94
-#OP_MUL = 0x95 disabled: re-enabled in november 2019?
+#OP_MUL = 0x95 disabled
 OP_DIV = 0x96 
 OP_MOD = 0x97 
-#OP_LSHIFT = 0x98 disabled: re-enabled in november 2019?
-#OP_RSHIFT = 0x99 disabled: re-enabled in november 2019?
+#OP_LSHIFT = 0x98 disabled
+#OP_RSHIFT = 0x99 disabled
  
 # Crypto
+OP_RIPEMD160 = 0xa6
 OP_SHA1 = 0xa7
 OP_SHA256 = 0xa8
 OP_HASH160 = 0xa9
@@ -98,8 +99,8 @@ OP_CHECKDATASIG = 0xba
 OP_CHECKDATASIGVERIFY = 0xbb
 
 # Locktime
-OP_CHECKLOCKTIMEVERIFY = 0xb1
-OP_CHECKSEQUENCEVERIFY = 0xb2
+OP_CHECKLOCKTIMEVERIFY = 0xb1 # OP_NOP2
+OP_CHECKSEQUENCEVERIFY = 0xb2 # OP_NOP3
 
 # Reserved words
 OP_NOP1 = 0xb0 # previously reserved for OP_EVAL (BIP-12), an alternative to P2SH
@@ -124,6 +125,26 @@ def multisig_locking_script(pubkeys, m):
 def multisig_unlocking_script(sigs):
     ''' Returns m-of-n multisig unlocking script. '''
     return ( bytes([OP_0]) + b''.join(push_data(sig) for sig in sigs) )
+
+def simple_addition_locking_script( nsum, n2, n1=-1 ):
+    ''' Simple addition locking script. '''
+    assert (n1 + n2 == nsum) | (n1 == -1)
+    return bytes([op_number( n2 ), OP_ADD, op_number( nsum ), OP_EQUAL])
+
+def simple_addition_unlocking_script( nsum, n2, n1):
+    assert (n1 + n2 == nsum)
+    return bytes([op_number( n1 )])
+
+def simple_secret_locking_script( secret ):
+    if isinstance(secret, str):
+        secret = secret.encode('utf-8')
+    h = sha256( secret )
+    return bytes([OP_SHA256]) + push_data( h ) + bytes([OP_EQUAL])
+
+def simple_secret_unlocking_script( secret ):
+    if isinstance(secret, str):
+        secret = secret.encode('utf-8')
+    return push_data(secret)
 
 def simple_locktime_locking_script( locktime ):
     ''' Simple anyone-can-spend CHECKLOCKTIMEVERIFY locking script. '''
