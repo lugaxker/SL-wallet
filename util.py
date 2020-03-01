@@ -80,9 +80,11 @@ def push_data(data):
 
     # Minimal push must be enforced (HF-20191511)
     n = len(data)
-    if n == 1 & (int.from_bytes(data, 'big') <= 0x10):
+    if n == 0:
+        return bytes([OP_0])
+    if n == 1 & (0x01 <= int.from_bytes(data, 'big') <= 0x10):
         return bytes([op_number( int.from_bytes(data, 'big') )])
-    if n == 1 && (int.frombytes(data, 'big') == 0x81):
+    if n == 1 & (int.from_bytes(data, 'big') == 0x81):
         return OP_1NEGATE
     if n < OP_PUSHDATA1:
         return bytes([n]) + data
