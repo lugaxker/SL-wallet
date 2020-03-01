@@ -14,20 +14,12 @@ if __name__ == '__main__':
     if sys.version_info < (3, 5):
         sys.exit("Error: Must be using Python 3.5 or higher")
         
-    wifkey1 = "L239DGsGnzuvsDQcNDrkBk5WGNhMqQRkUkFSp3bCycWwR8i7Xvod"
-    
-    wifkeys_multisig = [ "KzwQjFQPytv5x6w2cLdF4BSweGVCPEt8b8HbcuTi8e75LRQfw94L",
-                "Ky4yk7uTBZ1EDbqyVfkvoZXURpWdRCxTpCERZb4gkn67fY8kK95R",
-                "Kz3Htg8mSfC997qkBxpVCdxYhEoRcFj5ikUjE96ipVAJPou7MwRD" ]
-    
-                
-    ## Bitcoin multisig the hard way - https://www.soroushjp.com/2014/12/20/bitcoin-multisig-the-hard-way-understanding-raw-multisignature-bitcoin-transactions/
-    #wifkeys = ["5JruagvxNLXTnkksyLMfgFgf3CagJ3Ekxu5oGxpTm5mPfTAPez3",
-               #"5JX3qAwDEEaapvLXRfbXRMSiyRgRSW9WjgxeyJQWwBugbudCwsk",
-               #"5JjHVMwJdjPEPQhq34WMUhzLcEd4SD7HgZktEh8WHstWcCLRceV"]
+    wifkeys_multisig = [ "KyLxarqt64ndG3ENbLYp2922HKoasdQqd2sZS3VaQD5BF2pJLCmL",
+                "KzqYDqNMVTPVeku7nwdFv3zPAQLwD2BnfEwgYYWeryyKbMDGTzwX",
+                "L2wtM9x3JTvGa1YN6dpkmv4EdRsWTELJzdxsB2291KmSNe8Nof6c" ]
     
     # Sorted public keys involved in the multisig address
-    pubkeys = [ PublicKey.from_prvkey( wk ).to_ser() for wk in wifkeys_multisig]
+    pubkeys = [ PublicKey.from_prvkey( wk ) for wk in wifkeys_multisig]
     
     # Number of signatures required to unlock the multisig address
     nsigs = 2
@@ -35,102 +27,78 @@ if __name__ == '__main__':
     redeem_script = multisig_locking_script( pubkeys, nsigs )
     p2sh_addr = Address.from_script( redeem_script )
     
-    # Transaction 1: p2pkh -> p2sh
-    prvkey1 = PrivateKey.from_wif( wifkey1 )
-    pubkey1 = PublicKey.from_prvkey( prvkey1 )
-    input_address = Address.from_pubkey( pubkey1.to_ser() ).to_string() 
-    output_address = p2sh_addr.to_cash()
-    
-    prevout_txid = "10e7ee10ecab3d16fcba5160792733dc2eeeb7270389d304832da3c9f5d31ef5"
-    prevout_index = 1
-    prevout_value = 80000 # previous output value
-    locktime = 537937
-    
-    # Creation of the transaction    
-    txin = {}
-    txin['address'] = Address.from_pubkey( bytes.fromhex( pubkey1.to_ser(strtype=True) ) )
-    txin['txid'] = prevout_txid
-    txin['index'] = prevout_index
-    txin['value'] = prevout_value
-    txin['sequence'] = Constants.SEQUENCE_NUMBER
-    txin['pubkeys'] = [ pubkey1.to_ser(strtype=True) ]
-    txin['nsigs'] = 1
-    
-    tx1 = Transaction.from_inputs( [txin], locktime )
-    
-    txsize = ( tx1.estimate_size() + 32 
-             + 2 * (Address.from_string( output_address ).kind == Constants.CASH_P2PKH) )
-    fee = Constants.FEE_RATE * txsize 
-    tx1.add_output( {'address': Address.from_string( output_address ), 'value': prevout_value - fee} )
-    
-    tx1.sign([prvkey1]) # signature 
-    tx1.serialize() # computation of raw transaction
-    
-    
-    
-    fee = tx1.get_fee()
+    print("multisig addr", p2sh_addr.to_cash())
     print()
-    print("--- TRANSACTION 1 ---")
-    print("Input address", input_address)
-    print("Output address", output_address)
-    print("Amount", prevout_value-fee)
-    print("Fee: {:d} sats".format(fee) )
-    print("Size: {:d} bytes".format(len(tx1.raw)))
     
-    print("Raw tx", tx1.raw.hex())
+    output_addr = Address.from_string("qz954pyuatjtyrf654ud2k55ykr6n7yl9ql8cvc955")
     
-    
-    
-    # Transaction 2: p2sh -> p2pkh
-    input_address = p2sh_addr.to_cash()
-    output_address = "qrw5hv9cpnl8wuufse6c8pqlzwealrayw54hhf2d20"
-    
-    prevout_txid = "680843ff5435d228aad6569f9e587767a8c956c04a240c317e3a7d112bdd2c9c"
-    prevout_index = 0
-    prevout_value = 79810
-    locktime = 538106
-    
+    # Transaction 1
     txin = {}
+    txin['type'] = 'p2sh'
     txin['address'] = p2sh_addr
-    txin['txid'] = prevout_txid
-    txin['index'] = prevout_index
-    txin['value'] = prevout_value
     txin['sequence'] = Constants.SEQUENCE_NUMBER
-    txin['pubkeys'] = [pk.hex() for pk in pubkeys]
+    txin['redeem_script'] = redeem_script
+    txin['pubkeys'] = pubkeys
     txin['nsigs'] = nsigs
+    txin['txid'] = "13d126438c07e7265e99c8b78bdc54b0abea15d34382a8fcb4fe6f9704137ad3"
+    txin['index'] = 0
+    txin['value'] = 175352
     
-    tx2 = Transaction.from_inputs( [txin], locktime )
+    txout1 = {}
+    txout1['type'] = 'p2sh'
+    txout1['address'] = p2sh_addr
+    txout1['value'] = txin['value'] // 2 - 200
     
-    txsize = ( tx2.estimate_size() + 32 
-             + 2 * (Address.from_string( output_address ).kind == Constants.CASH_P2PKH) )
+    txout2 = {}
+    txout2['type'] = 'p2pkh'
+    txout2['address'] = output_addr
+    txout2['value'] = txin['value'] // 2 - 200
     
-    fee = Constants.FEE_RATE * txsize 
-    
-    tx2.add_output( {'address': Address.from_string( output_address ), 'value': prevout_value - fee} )
-    
+    tx = Transaction(2, [txin], [txout1, txout2], 0)
     prvkeys = [ [PrivateKey.from_wif( wifkeys_multisig[2] ), PrivateKey.from_wif( wifkeys_multisig[0] )] ]
-    tx2.sign(prvkeys)  
-    tx2.serialize()
+    tx.sign( prvkeys, alg="schnorr" )
     
+    txb = tx.serialize()
+    txid = tx.txid().hex()
+    fee = tx.get_fee()
+    
+    print("Transaction BCH de {} vers {} et {}".format(p2sh_addr.to_cash(), txout1['address'].to_cash(), txout2['address'].to_cash() ))
+    print("size", len(txb))
+    print("fee (satcashes)", fee)
+    print(txb.hex())
+    print("id:", txid)
+    print()
+    
+    # Transaction 2
+    txin2 = {}
+    txin2['type'] = 'p2sh'
+    txin2['address'] = p2sh_addr
+    txin2['sequence'] = Constants.SEQUENCE_NUMBER
+    txin2['redeem_script'] = redeem_script
+    txin2['pubkeys'] = pubkeys
+    txin2['nsigs'] = nsigs
+    txin2['txid'] = "92e28ed95599db7ef68aae021baa9200c62efa5e63565c45dd5c146ad042fa95"
+    txin2['index'] = 0
+    txin2['value'] = 87476
+    
+    txout = {}
+    txout['type'] = 'p2pkh'
+    txout['address'] = output_addr
+    txout['value'] = txin2['value'] - 400
+    
+    tx2 = Transaction(2, [txin2], [txout], 0)
+    prvkeys = [ [PrivateKey.from_wif( wifkeys_multisig[0] ), PrivateKey.from_wif( wifkeys_multisig[1] )] ]
+    tx2.sign( prvkeys, alg="ecdsa" )
+    
+    txb = tx2.serialize()
+    txid = tx2.txid().hex()
     fee = tx2.get_fee()
+    
+    print("Transaction BCH de {} vers {}".format(p2sh_addr.to_cash(), txout['address'].to_cash() ))
+    print("size", len(txb))
+    print("fee (satcashes)", fee)
+    print(txb.hex())
+    print("id:", txid)
     print()
-    print("--- TRANSACTION 2 ---")
-    print("Input address (multisig)", input_address)
-    print("Output address", output_address)
-    print("Amount", prevout_value-fee)
-    print("Fee: {:d} sats".format(fee) )
-    print("Size: {:d} bytes".format(len(tx2.raw)))
-    print("Raw tx", tx2.raw.hex())
-    
-    print()
-    print("Private keys (WIF)")
-    for wk in wifkeys_multisig:
-        print(" ",wk)
-    
-    print()
-    print("Public keys")
-    for pubkey in pubkeys:
-        print(" ", pubkey.hex())
-    
-    
+        
     

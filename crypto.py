@@ -146,7 +146,7 @@ class PrivateKey:
             signature = private_key.sign_digest_deterministic(msg_hash, hashfunc=hashlib.sha256, sigencode = ecdsa.util.sigencode_der)
             assert public_key.verify_digest(signature, msg_hash, sigdecode = ecdsa.util.sigdecode_der)
         else:
-            raise Exception("Signature algorithm must schnorr or ecdsa")
+            raise Exception("Signature algorithm must be schnorr or ecdsa")
         return ( signature.hex() if strtype else signature )
     
     def __str__(self):
@@ -246,6 +246,46 @@ class PublicKey:
             
     def is_compressed(self):
         return self.prefix in (0x02,0x03)
+    
+    def verify_signature(self, sig, msghash, alg="schnorr"):
+        if alg == "schnorr":
+            G = ecdsa.SECP256k1.generator
+            order = G.order()
+            fieldsize = G.curve().p()
+            
+            P = self.to_ec_point()
+            
+            rbytes = sig[:32]
+            sbytes = sig[32:]
+            s = int.from_bytes(sbytes, 'big')
+            if s >= order:
+                return False
+
+            # compressed format, regardless of whether pubkey is compressed or not:
+            prefix = self.prefix  if self.is_compressed() else (0x02 + (self.y & 1))
+            pubbytes = bytes.fromhex("{:02x}{:064x}".format( prefix, self.x ))
+
+            ebytes = sha256(rbytes + pubbytes + msghash)
+            e = int.from_bytes(ebytes, 'big')
+
+            R = s * G + (- e) * P
+
+            if R == ecdsa.ellipticcurve.INFINITY:
+                return False
+
+            if ecdsa.numbertheory.jacobi(R.y(), fieldsize) != 1:
+                return False
+            
+            return (R.x().to_bytes(32, 'big') == rbytes)
+        
+        elif alg == "ecdsa":
+            P = self.to_ec_point()
+            vk = ecdsa.VerifyingKey.from_public_point(P, curve=ecdsa.SECP256k1)
+            #vk = MyVerifyingKey.from_public_point(pubkey_point, curve=SECP256k1)
+            return vk.verify_digest(sig, msghash, sigdecode = ecdsa.util.sigdecode_der)
+        
+        else:
+            raise Exception("Signature algorithm must be schnorr or ecdsa")
             
     def __str__(self):
         return self.to_ser(strtype=True)

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+from math import floor
+
 from crypto import (sha256, hash160, PublicKey)
 from address import Address
 from nulldata import (create_memo_script, parse_memo_script)
@@ -135,9 +137,14 @@ def multisig_locking_script(pubkeys, m):
     serpubkeys = bytes().join( push_data( pubkey.to_ser() ) for pubkey in pubkeys)
     return ( bytes([OP_m]) + serpubkeys + bytes([OP_n, OP_CHECKMULTISIG]) )
 
-def multisig_unlocking_script(sigs):
+def multisig_unlocking_script(sigs, dummy=0):
     ''' Returns m-of-n multisig unlocking script. '''
-    return ( bytes([OP_0]) + b''.join(push_data(sig) for sig in sigs) )
+    m = len(sigs)
+    if m > 3:
+        raise ScriptError('Too many signatures ({:d})'.format(m))
+    dummyb = dummy.to_bytes((dummy.bit_length() + 7) // 8, 'big')
+    
+    return ( push_data(dummyb) + b''.join(push_data(sig) for sig in sigs) )
 
 def simple_addition_locking_script( nsum, n2, n1=-1 ):
     ''' Simple addition locking script. '''
@@ -215,7 +222,7 @@ def p2pkh_unlocking_script( addr, pubkeys, signatures ):
     assert isinstance( signatures[0], (bytes, bytearray) ) 
     return (push_data( signatures[0] ) + push_data( pubkeys[0].to_ser() ))
 
-def p2sh_unlocking_script( addr, redeem_script, pubkeys, signatures ):
+def p2sh_unlocking_script( addr, redeem_script, pubkeys, signatures, var_args=None ):
     assert isinstance( addr, Address )
     assert addr.kind == Constants.CASH_P2SH
     assert isinstance( pubkeys[0], PublicKey )
@@ -225,9 +232,11 @@ def p2sh_unlocking_script( addr, redeem_script, pubkeys, signatures ):
     # TODO: parse script
     
     if redeem_script[-1] == OP_CHECKMULTISIG:
+        dummy = var_args[0]
+        
         # Multisig output to unlock
         assert redeem_script == multisig_locking_script(pubkeys, len(signatures))
-        return (multisig_unlocking_script(signatures) 
+        return (multisig_unlocking_script(signatures, dummy) 
                 + push_data( redeem_script ))
     
     elif (len(redeem_script) in [75,76,77,78,79,80]) & (redeem_script[-38] == OP_CHECKLOCKTIMEVERIFY):

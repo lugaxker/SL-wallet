@@ -198,7 +198,37 @@ class Transaction:
             if txin['address'].kind == Constants.CASH_P2PKH:
                 unlockingScript = p2pkh_unlocking_script(txin['address'], txin['pubkeys'], signatures)
             elif txin['address'].kind == Constants.CASH_P2SH:
-                unlockingScript = p2sh_unlocking_script(txin['address'], txin['redeem_script'], txin['pubkeys'], signatures)
+                # We assume this is a multisig input                    
+                ibits = 0
+                jpub = 0
+                checkbits = 0
+                is_ecdsa = False
+                for sig in signatures:
+                    for pubkey in txin['pubkeys'][jpub:]:
+                        if pubkey.verify_signature(sig[:-1], self.prehash, alg="schnorr"):
+                            checkbits = checkbits | (1 << ibits)
+                            ibits += 1
+                            jpub = txin['pubkeys'].index(pubkey) + 1
+                            break
+                        try:
+                            pubkey.verify_signature(sig[:-1], self.prehash, alg="ecdsa")
+                        except:
+                            pass
+                        else:
+                            is_ecdsa = True
+                            print("signature match")
+                            jpub = txin['pubkeys'].index(pubkey) + 1
+                            break
+                        ibits += 1
+                        
+                dummy = 0 if is_ecdsa else checkbits
+                
+                if is_ecdsa:
+                    dummy = 0
+                else:
+                    dummy = checkbits
+                
+                unlockingScript = p2sh_unlocking_script(txin['address'], txin['redeem_script'], txin['pubkeys'], signatures, [dummy])
             else:
                 raise TransactionError("cannot parse type")
         unlockingScriptSize = var_int( len( unlockingScript ) )
@@ -299,9 +329,9 @@ class Transaction:
                 prvkeys = [k[1] for k in sorted_prvkeys]
             else:
                 raise TransactionError('wrong type for private keys')
-            prehash = dsha256( self.serialize_preimage(txin) )
+            self.prehash = dsha256( self.serialize_preimage(txin) )
             hashtype = bytes( [self.hashtype & 0xff] ).hex()
-            self._inputs[i]['signatures'] = [ prvkey.sign( prehash, alg, strtype=True ) + hashtype for prvkey in prvkeys ]
+            self._inputs[i]['signatures'] = [ prvkey.sign( self.prehash, alg, strtype=True ) + hashtype for prvkey in prvkeys ]
           
     def estimate_input_size(self, txin):
         sz_prevout_txid = 32
