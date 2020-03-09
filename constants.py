@@ -24,7 +24,7 @@ class Constants:
     
     BLOCKHEADER_SIZE = 80 # 80 bytes
     
-    # Signature hash types and flags
+    # Signature hash types and modifiers
     SIGHASH_ALL = 0x01
     SIGHASH_NONE = 0x02
     SIGHASH_SINGLE = 0x03
